@@ -1,0 +1,39 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases & logs
+*.db
+*.sqlite
+*.sqlite3
+llm_judge.db
+*.log
+outputs/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Node & Frontend build artifacts
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# IDE and OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
