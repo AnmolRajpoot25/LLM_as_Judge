@@ -89,18 +89,23 @@ LLM-Judge/
 │   │   └── report_generator.py # Final evaluation report generator
 │   ├── database/
 │   │   ├── connection.py      # Engine, session factory & SQLite connection
-│   │   ├── models.py          # Session, Prompt, ModelResponse, PairwiseComparison, EvaluationResult
+│   │   ├── models.py          # User, UserApiKey, Session, Prompt, ModelResponse, PairwiseComparison, EvaluationResult
 │   │   └── repository.py      # SessionRepository with selective saving
+│   ├── services/
+│   │   ├── auth.py            # PBKDF2 hashing, HMAC token issuance & verification
+│   │   ├── cost_calculator.py # Centralized pricing calculations
+│   │   ├── generation_service.py # Concurrent async generation with per-user key resolution
+│   │   └── comparison_service.py # End-to-end Mode 1 and Mode 2 pipeline orchestrator
 │   ├── api/
 │   │   ├── main.py            # FastAPI application with CORS & lifespan
 │   │   ├── dependencies.py    # Dependency injection
-│   │   ├── routes/            # models, generate, compare, sessions
+│   │   ├── routes/            # models, generate, compare, sessions, auth, user_keys
 │   │   └── schemas/           # Pydantic request & response validation
 │   └── config/
 │       ├── settings.py        # Pydantic Settings (.env loader)
 │       └── pricing.py         # Centralized pricing table
-├── frontend/                  # React + TypeScript + Vite web app
-├── tests/                     # 20 automated unit, API, and E2E integration tests
+├── frontend/                  # React 19 + TypeScript + Vite web app (Obsidian cyber theme)
+├── tests/                     # 24 automated unit, API, auth, and E2E integration tests
 ├── requirements.txt
 └── .env.example
 ```
@@ -127,13 +132,14 @@ cd ..
 
 ### 2. Configure Environment
 
-Copy `.env.example` to `.env` and provide your API keys (optional for mock testing):
+Copy `.env.example` to `.env` (optional defaults provided):
 
 ```bash
 cp .env.example .env
 ```
 
 ```ini
+AUTH_SECRET_KEY=your-secure-secret-key
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_API_KEY=AIza...
@@ -141,6 +147,8 @@ DEEPSEEK_API_KEY=...
 MISTRAL_API_KEY=...
 OLLAMA_BASE_URL=http://localhost:11434
 ```
+
+> **Note:** API keys can also be configured directly via the web UI under the **API Keys** tab once logged in.
 
 ### 3. Run Backend & Frontend
 
@@ -161,7 +169,7 @@ Open `http://localhost:5173` in your browser.
 
 ## Running the Automated Test Suite
 
-Run all 20 tests (unit, API, database, and live integration):
+Run all 24 tests (unit, API, authentication, database, and live integration):
 ```bash
 python -m pytest tests/ -v
 ```
@@ -189,12 +197,23 @@ The system automatically serializes inference through `judge_manager.lock` to pr
 
 ## REST API Reference
 
+### Evaluation & Models
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/models` | List all configured models, availability, and pricing |
-| `POST` | `/api/generate-compare` | Run concurrent generation & pairwise evaluation (Mode 1) |
+| `POST` | `/api/generate-compare` | Run concurrent generation & pairwise evaluation (Mode 1; supports dynamic user API keys) |
 | `POST` | `/api/manual-compare` | Evaluate user-supplied answers pairwise (Mode 2) |
 | `POST` | `/api/sessions/{session_id}/save` | Selectively persist session components to SQLite |
 | `GET` | `/api/sessions/{session_id}` | Retrieve full details of a saved session |
 | `GET` | `/api/sessions` | List saved sessions history |
 | `GET` | `/api/health` | Service health status |
+
+### User Authentication & API Keys Management
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/register` | Create a new user account (PBKDF2-HMAC-SHA256 salted hash) |
+| `POST` | `/api/auth/login` | Authenticate user and receive signed Bearer token |
+| `GET` | `/api/auth/me` | Retrieve profile of authenticated user |
+| `GET` | `/api/user/keys` | View user's configured provider keys (masked for security) |
+| `POST` | `/api/user/keys` | Save or update personal provider API keys |
+| `POST` | `/api/user/keys/test` | Live test connectivity for a specific provider key |
