@@ -1,235 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 """Comparison service orchestrating end-to-end Mode 1 and Mode 2 evaluation pipelines."""
 
 import time
@@ -246,7 +14,7 @@ from src.evaluation.report_generator import ReportGenerator
 
 
 class ComparisonService:
-    """End-to-end evaluation orchestrator for Mode 1 (Generate & Compare) and Mode 2 (Manual Compare)."""
+    """End-to-end evaluation orchestrator for Mode 1 (Generate & Compare / Single Generate) and Mode 2 (Manual Compare)."""
 
     def __init__(
         self,
@@ -266,7 +34,7 @@ class ComparisonService:
         position_swap_check: Optional[bool] = None,
         custom_api_keys: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
-        """Mode 1: Generate answers from selected models and evaluate pairwise."""
+        """Mode 1: Generate answers from selected models and evaluate pairwise (or single output if 1 model)."""
         session_id = f"gen-{uuid.uuid4().hex[:10]}"
         start_time = time.perf_counter()
         swap_check = settings.position_swap_check if position_swap_check is None else position_swap_check
@@ -283,8 +51,8 @@ class ComparisonService:
         all_responses = gen_result["all_responses"]
         successful_responses = gen_result["successful_responses"]
 
-        # Step 2: Partial Failure Check
-        if not gen_result["has_sufficient_models"]:
+        # Step 2: Partial Failure / Insufficient check
+        if not gen_result["has_sufficient_models"] or len(successful_responses) == 0:
             elapsed = time.perf_counter() - start_time
             metrics = MetricsTracker.calculate_session_metrics(
                 generation_responses=all_responses,
@@ -293,7 +61,7 @@ class ComparisonService:
             )
             return ReportGenerator.generate_report(
                 session_id=session_id,
-                mode="GENERATE_AND_COMPARE",
+                mode="GENERATE_AND_COMPARE" if len(models) > 1 else "SINGLE_GENERATION",
                 prompt=prompt,
                 system_prompt=system_prompt,
                 answers=all_responses,
@@ -303,7 +71,69 @@ class ComparisonService:
                 status="INSUFFICIENT_SUCCESSFUL_MODELS"
             )
 
-        # Step 3: Format answers for Pairwise Evaluator
+        # Step 3: Single-model bypass (no pairwise judge evaluation needed)
+        if len(models) == 1:
+            elapsed = time.perf_counter() - start_time
+            metrics = MetricsTracker.calculate_session_metrics(
+                generation_responses=all_responses,
+                pairwise_comparisons=[],
+                session_wall_clock_seconds=elapsed
+            )
+            rankings = [{
+                "rank": 1,
+                "model_id": successful_responses[0]["model"],
+                "model_name": successful_responses[0].get("model_name") or successful_responses[0]["model"],
+                "wins": 0,
+                "losses": 0,
+                "ties": 0,
+                "win_rate": 1.0,
+                "score": 100.0,
+                "total_matches": 0
+            }]
+            return ReportGenerator.generate_report(
+                session_id=session_id,
+                mode="SINGLE_GENERATION",
+                prompt=prompt,
+                system_prompt=system_prompt,
+                answers=all_responses,
+                pairwise_comparisons=[],
+                rankings=rankings,
+                metrics=metrics,
+                status="COMPLETED"
+            )
+
+        # If multiple models were selected but only 1 succeeded
+        if len(successful_responses) < 2:
+            elapsed = time.perf_counter() - start_time
+            metrics = MetricsTracker.calculate_session_metrics(
+                generation_responses=all_responses,
+                pairwise_comparisons=[],
+                session_wall_clock_seconds=elapsed
+            )
+            rankings = [{
+                "rank": 1,
+                "model_id": successful_responses[0]["model"],
+                "model_name": successful_responses[0].get("model_name") or successful_responses[0]["model"],
+                "wins": 0,
+                "losses": 0,
+                "ties": 0,
+                "win_rate": 1.0,
+                "score": 100.0,
+                "total_matches": 0
+            }]
+            return ReportGenerator.generate_report(
+                session_id=session_id,
+                mode="GENERATE_AND_COMPARE",
+                prompt=prompt,
+                system_prompt=system_prompt,
+                answers=all_responses,
+                pairwise_comparisons=[],
+                rankings=rankings,
+                metrics=metrics,
+                status="COMPLETED_WITH_WARNINGS"
+            )
+
+        # Step 4: Multiple models succeeded - Run Pairwise Evaluation
         model_answers = [
             {
                 "model_id": r["model"],
@@ -313,7 +143,6 @@ class ComparisonService:
             for r in successful_responses
         ]
 
-        # Step 4: Run Pairwise Evaluation
         eval_result = await self.pairwise_evaluator.evaluate_all_pairs(
             problem=prompt,
             model_answers=model_answers,
@@ -370,9 +199,9 @@ class ComparisonService:
         if not problem or not problem.strip():
             raise GenerationServiceError("Problem cannot be empty.", "EmptyProblemError")
 
-        if len(answers) < settings.min_selected_models:
+        if len(answers) < 2:
             raise GenerationServiceError(
-                f"At least {settings.min_selected_models} answers are required for comparison (got {len(answers)}).",
+                "At least 2 answers are required for comparison.",
                 "InsufficientAnswersError"
             )
 
