@@ -12,7 +12,7 @@ class GenerationConfigSchema(BaseModel):
 
 
 class GenerateCompareRequest(BaseModel):
-    models: List[str] = Field(..., description="List of 2 to 4 model identifiers (e.g. ['mock:model-a', 'mock:model-b'])")
+    models: List[str] = Field(..., description="List of 1 to 4 model identifiers (e.g. ['gemini:gemini-1.5-flash'])")
     prompt: str = Field(..., description="Problem statement or prompt to evaluate")
     system_prompt: Optional[str] = Field(default=None, description="Optional system instructions")
     generation_config: Optional[GenerationConfigSchema] = Field(default=None)
@@ -32,8 +32,8 @@ class GenerateCompareRequest(BaseModel):
     @field_validator("models")
     @classmethod
     def validate_models(cls, v: List[str]) -> List[str]:
-        if len(v) < 2:
-            raise ValueError(f"At least 2 models must be selected (got {len(v)}).")
+        if len(v) < 1:
+            raise ValueError("At least 1 model must be selected.")
         if len(v) > 4:
             raise ValueError(f"At most 4 models can be selected (got {len(v)}).")
         if len(set(v)) != len(v):
