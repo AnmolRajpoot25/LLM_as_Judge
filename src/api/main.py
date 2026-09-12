@@ -36,10 +36,24 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+import os
+
 # CORS middleware for React / Vite frontend
+cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+for origin in default_origins:
+    if origin not in allowed_origins:
+        allowed_origins.append(origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
