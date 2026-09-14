@@ -15,6 +15,7 @@ interface PromptInputProps {
   onSubmit: () => void;
   isLoading: boolean;
   canSubmit: boolean;
+  selectedCount?: number;
 }
 
 export const PromptInput: React.FC<PromptInputProps> = ({
@@ -31,6 +32,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
   onSubmit,
   isLoading,
   canSubmit,
+  selectedCount = 2,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSystemPrompt, setShowSystemPrompt] = useState(false);
@@ -163,15 +165,21 @@ export const PromptInput: React.FC<PromptInputProps> = ({
         paddingTop: "16px",
         borderTop: "1px solid var(--border-subtle)"
       }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer", color: "var(--text-muted)" }}>
-          <input
-            type="checkbox"
-            checked={positionSwapCheck}
-            onChange={(e) => onChangePositionSwapCheck(e.target.checked)}
-            style={{ accentColor: "var(--accent-primary)", width: "16px", height: "16px" }}
-          />
-          <span>Mitigate Position Bias (Evaluate A vs B, then B vs A)</span>
-        </label>
+        {selectedCount > 1 ? (
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer", color: "var(--text-muted)" }}>
+            <input
+              type="checkbox"
+              checked={positionSwapCheck}
+              onChange={(e) => onChangePositionSwapCheck(e.target.checked)}
+              style={{ accentColor: "var(--accent-primary)", width: "16px", height: "16px" }}
+            />
+            <span>Mitigate Position Bias (Evaluate A vs B, then B vs A)</span>
+          </label>
+        ) : (
+          <span style={{ fontSize: "13px", color: "var(--text-dim)" }}>
+            Direct Generation Mode (No judge evaluation required)
+          </span>
+        )}
 
         <button
           className="btn-primary"
@@ -181,12 +189,12 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           {isLoading ? (
             <>
               <RefreshCw className="animate-spin" size={18} />
-              Generating & Evaluating...
+              {selectedCount === 1 ? "Generating Answer..." : "Generating & Evaluating..."}
             </>
           ) : (
             <>
               <Sparkles size={18} />
-              Run Generation & Comparison
+              {selectedCount === 1 ? "Generate Answer" : "Run Generation & Comparison"}
             </>
           )}
         </button>

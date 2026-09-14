@@ -21,10 +21,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
         <div>
           <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-main)" }}>
-            Select LLMs to Compare
+            Select LLMs to Run / Compare
           </h3>
           <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-            Choose between 2 and 4 models for simultaneous generation and pairwise evaluation.
+            Choose 1 model for direct single generation, or 2 to 4 models for pairwise evaluation and ranking.
           </p>
         </div>
         <div style={{
@@ -35,11 +35,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           borderRadius: "20px",
           fontSize: "13px",
           fontWeight: 700,
-          background: count >= 2 && count <= 4 ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
-          color: count >= 2 && count <= 4 ? "#34D399" : "#F87171",
-          border: `1px solid ${count >= 2 && count <= 4 ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`
+          background: count >= 1 && count <= 4 ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
+          color: count >= 1 && count <= 4 ? "#34D399" : "#F87171",
+          border: `1px solid ${count >= 1 && count <= 4 ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`
         }}>
-          {count} / 4 Selected {count < 2 ? "(Min 2 Required)" : isMax ? "(Max Reached)" : ""}
+          {count} / 4 Selected {count === 0 ? "(Select at least 1)" : count === 1 ? "(Single Model Mode)" : isMax ? "(Max Reached)" : "(Pairwise Evaluation)"}
         </div>
       </div>
 
