@@ -2,11 +2,16 @@ import pytest
 from starlette.testclient import TestClient
 from src.api.main import app
 from src.database.connection import init_db
+from src.providers.registry import model_registry
+from src.providers.mock_provider import MockProvider
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_db():
+def setup_db_and_providers():
     init_db()
+    # Register mock provider for fast zero-cost local automated testing
+    mock_prov = MockProvider()
+    model_registry.register_provider(mock_prov)
 
 
 @pytest.fixture
@@ -29,20 +34,29 @@ def test_get_models(client):
     assert r.status_code == 200
     data = r.json()
     assert "models" in data
-    assert data["total"] >= 4
-    # Verify mock models are included
+    assert data["total"] >= 10
+
+    # Verify mock demo models are REMOVED from catalog
     mock_ids = [m["id"] for m in data["models"] if m["provider"] == "mock"]
-    assert "mock:model-a" in mock_ids
-    assert "mock:model-b" in mock_ids
+    assert len(mock_ids) == 0
+
+    # Verify OpenRouter and Grok models are present
+    providers = {m["provider"] for m in data["models"]}
+    assert "openrouter" in providers
+    assert "grok" in providers
+
+    # Verify free tier openrouter models exist
+    free_models = [m for m in data["models"] if "free" in m["id"].lower()]
+    assert len(free_models) >= 3
 
 
 def test_generate_compare_validation_errors(client):
-    # 1 model -> 422
-    r1 = client.post("/api/generate-compare", json={
-        "models": ["mock:model-a"],
+    # 0 models -> 422
+    r0 = client.post("/api/generate-compare", json={
+        "models": [],
         "prompt": "Explain merge sort"
     })
-    assert r1.status_code == 422
+    assert r0.status_code == 422
 
     # 5 models -> 422
     r5 = client.post("/api/generate-compare", json={
@@ -64,6 +78,24 @@ def test_generate_compare_validation_errors(client):
         "prompt": "   "
     })
     assert r_empty.status_code == 422
+
+
+def test_generate_single_model_execution(client):
+    """Test generating output from a single model without pairwise judge comparison."""
+    r = client.post("/api/generate-compare", json={
+        "models": ["mock:model-a"],
+        "prompt": "Explain quicksort in one sentence."
+    })
+    assert r.status_code == 200
+    report = r.json()
+    assert report["mode"] == "SINGLE_GENERATION"
+    assert report["status"] == "COMPLETED"
+    assert len(report["answers"]) == 1
+    assert len(report["pairwise_comparisons"]) == 0
+    assert len(report["rankings"]) == 1
+    assert report["rankings"][0]["rank"] == 1
+    assert report["rankings"][0]["model_id"] == "model-a"
+    assert report["metrics"]["total_session_latency_seconds"] >= 0
 
 
 def test_generate_compare_execution_2_models(client):
