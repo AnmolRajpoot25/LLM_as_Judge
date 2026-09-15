@@ -15,6 +15,7 @@ import {
 interface ApiKeysPageProps {
   authToken: string | null;
   onNavigateToLogin: () => void;
+  onKeysUpdated?: () => void;
 }
 
 interface ProviderConfigMeta {
@@ -62,6 +63,20 @@ const PROVIDERS: ProviderConfigMeta[] = [
     description: "Powers Mistral Large and Mistral Small comparisons.",
   },
   {
+    id: "openrouter",
+    name: "OpenRouter (Free & Paid Models)",
+    placeholder: "sk-or-v1-...",
+    docsUrl: "https://openrouter.ai/keys",
+    description: "Powers free tier Llama 3.3 70B, DeepSeek R1, Qwen 2.5 72B, and Gemini Flash Lite.",
+  },
+  {
+    id: "grok",
+    name: "xAI Grok",
+    placeholder: "xai-...",
+    docsUrl: "https://console.x.ai/",
+    description: "Powers Grok 2, Grok 2 Vision, and Grok Beta frontier models.",
+  },
+  {
     id: "ollama",
     name: "Ollama (Local URL)",
     placeholder: "http://localhost:11434",
@@ -73,6 +88,7 @@ const PROVIDERS: ProviderConfigMeta[] = [
 export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({
   authToken,
   onNavigateToLogin,
+  onKeysUpdated,
 }) => {
   const [keysStatus, setKeysStatus] = useState<Record<string, ProviderKeyStatus>>({});
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -116,6 +132,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({
         setSaveSuccessMap((prev) => ({ ...prev, [provider]: false }));
       }, 2000);
       loadKeys();
+      onKeysUpdated?.();
     } catch (err) {
       alert("Failed to save key: " + (err as Error).message);
     }

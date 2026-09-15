@@ -74,7 +74,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <span className="session-badge">Session: {report.session_id}</span>
             <span style={{ fontSize: "13px", color: "var(--text-dim)" }}>
-              Mode: {report.mode === "GENERATE_AND_COMPARE" ? "Generate & Compare" : "Manual Compare"}
+              Mode: {report.mode === "GENERATE_AND_COMPARE" ? "Generate & Compare" : report.mode === "SINGLE_GENERATION" ? "Single Model Generation" : "Manual Compare"}
             </span>
           </div>
         </div>
@@ -252,10 +252,15 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
       {activeTab === "pairwise" && (
         <div>
           <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "16px" }}>
-            Pairwise Evaluation Breakdowns (N*(N-1)/2 Comparisons)
+            Pairwise Evaluation Breakdowns ({report.pairwise_comparisons.length} Comparisons)
           </h3>
 
-          {report.pairwise_comparisons.map((comp, idx) => {
+          {report.pairwise_comparisons.length === 0 ? (
+            <div className="glass-card" style={{ padding: "32px", textAlign: "center", color: "var(--text-muted)" }}>
+              No pairwise comparisons for single model runs. View the full output in the "Full Model Answers" tab.
+            </div>
+          ) : (
+            report.pairwise_comparisons.map((comp, idx) => {
             const isExpanded = expandedComparisons[comp.comparison_id];
             const judgeRes = comp.judge_result;
             const scoreA = judgeRes?.scores?.A;
@@ -388,7 +393,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 )}
               </div>
             );
-          })}
+          }))}
         </div>
       )}
 

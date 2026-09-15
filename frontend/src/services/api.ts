@@ -1,101 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 import type {
   ModelInfo,
   EvaluationReport,
@@ -108,10 +10,14 @@ import type {
   ProviderKeyStatus,
 } from "../types/auth";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000/api";
 
-export async function fetchAvailableModels(): Promise<ModelInfo[]> {
-  const res = await fetch(`${API_BASE}/models`);
+export async function fetchAvailableModels(authToken?: string | null): Promise<ModelInfo[]> {
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+  const res = await fetch(`${API_BASE}/models`, { headers });
   if (!res.ok) {
     throw new Error(`Failed to fetch models (HTTP ${res.status})`);
   }
@@ -156,11 +62,18 @@ export async function executeManualCompare(payload: {
   problem: string;
   answers: { model_name: string; answer: string }[];
   position_swap_check?: boolean;
+  authToken?: string | null;
 }): Promise<EvaluationReport> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (payload.authToken) {
+    headers["Authorization"] = `Bearer ${payload.authToken}`;
+  }
+
+  const { authToken, ...bodyData } = payload;
   const res = await fetch(`${API_BASE}/manual-compare`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    headers,
+    body: JSON.stringify(bodyData),
   });
 
   if (!res.ok) {
@@ -175,11 +88,17 @@ export async function executeManualCompare(payload: {
 export async function saveSessionReport(
   sessionId: string,
   sessionData: EvaluationReport,
-  saveOptions: SaveOptions
+  saveOptions: SaveOptions,
+  authToken?: string | null
 ): Promise<any> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+
   const res = await fetch(`${API_BASE}/sessions/${sessionId}/save`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       save_options: saveOptions,
       session_data: sessionData,
@@ -194,8 +113,13 @@ export async function saveSessionReport(
   return res.json();
 }
 
-export async function fetchSavedSession(sessionId: string): Promise<EvaluationReport> {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}`);
+export async function fetchSavedSession(sessionId: string, authToken?: string | null): Promise<EvaluationReport> {
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}`, { headers });
   if (!res.ok) {
     throw new Error(`Failed to load session ${sessionId}`);
   }
@@ -203,8 +127,13 @@ export async function fetchSavedSession(sessionId: string): Promise<EvaluationRe
   return data.data;
 }
 
-export async function fetchSavedSessions(): Promise<SavedSessionSummary[]> {
-  const res = await fetch(`${API_BASE}/sessions`);
+export async function fetchSavedSessions(authToken?: string | null): Promise<SavedSessionSummary[]> {
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+
+  const res = await fetch(`${API_BASE}/sessions`, { headers });
   if (!res.ok) {
     throw new Error("Failed to load session history");
   }
