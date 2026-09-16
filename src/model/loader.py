@@ -1,5 +1,11 @@
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+try:
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+except ImportError:
+    torch = None
+    AutoTokenizer = None
+    AutoModelForCausalLM = None
+    BitsAndBytesConfig = None
 
 
 class ModelLoader:
@@ -8,6 +14,11 @@ class ModelLoader:
         self.model_name = model_name
 
     def load(self):
+        if torch is None or AutoTokenizer is None:
+            raise RuntimeError(
+                "PyTorch and transformers are not installed in this environment. "
+                "Local model loading is unavailable. Use remote judge or providers instead."
+            )
 
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,

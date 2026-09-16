@@ -1,7 +1,10 @@
 import json
 import re
 
-import torch
+try:
+    import torch
+except ImportError:
+    torch = None
 
 from src.judge.prompts import JUDGE_SYSTEM_PROMPT
 
@@ -62,6 +65,12 @@ Return ONLY the required JSON.
         ]
 
     def _generate(self, messages):
+        if torch is None:
+            raise RuntimeError(
+                "PyTorch is not installed in this environment. "
+                "To evaluate with Qwen, either install PyTorch or configure QWEN_HF_API_URL "
+                "to use the remote Hugging Face Inference Space/API."
+            )
 
         text = self.tokenizer.apply_chat_template(
             messages,
