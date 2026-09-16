@@ -38,26 +38,47 @@ app = FastAPI(
 
 import os
 
+from starlette.requests import Request
+
 # CORS middleware for React / Vite frontend (supports Vercel, localhost, and custom domains)
 cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
-if cors_env:
-    allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()] if cors_env else []
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+for origin in default_origins:
+    if origin not in allowed_origins:
+        allowed_origins.append(origin)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https?://.*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.middleware("http")
+async def rewrite_legacy_api_prefix(request: Request, call_next):
+    """Ensure requests work whether called with /api prefix or directly."""
+    path = request.url.path
+    legacy_prefixes = (
+        "/auth",
+        "/models",
+        "/generate-compare",
+        "/manual-compare",
+        "/sessions",
+        "/user",
     )
-else:
-    # Allow any HTTP / HTTPS origin (Vercel deployments, preview URLs, localhost)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=r"https?://.*",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    if any(path.startswith(p) for p in legacy_prefixes) and not path.startswith("/api"):
+        request.scope["path"] = f"/api{path}"
+    return await call_next(request)
+
 
 # Include Routers
 app.include_router(auth_router)
