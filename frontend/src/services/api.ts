@@ -10,8 +10,8 @@ import type {
   ProviderKeyStatus,
 } from "../types/auth";
 
-const rawBase = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000/api";
-export const API_BASE = rawBase.replace(/\/+$/, "");
+const configuredBase = ((import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000/api").trim().replace(/\/+$/, "");
+export const API_BASE = configuredBase.endsWith("/api") ? configuredBase : `${configuredBase}/api`;
 
 async function safeFetch(url: string, init?: RequestInit): Promise<Response> {
   try {
