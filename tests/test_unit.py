@@ -33,10 +33,10 @@ def test_cost_calculator():
 def test_model_selection_validation():
     service = GenerationService()
 
-    # 1 model rejected
+    # 0 models rejected
     with pytest.raises(GenerationServiceError) as exc:
-        service.validate_request(["mock:model-a"], "Valid prompt")
-    assert "At least 2 models" in str(exc.value)
+        service.validate_request([], "Valid prompt")
+    assert "At least 1 model" in str(exc.value)
 
     # 5 models rejected
     with pytest.raises(GenerationServiceError) as exc:
@@ -56,7 +56,8 @@ def test_model_selection_validation():
         service.validate_request(["mock:model-a", "mock:model-b"], "   ")
     assert "Prompt cannot be empty" in str(exc.value)
 
-    # 2, 3, 4 models accepted
+    # 1, 2, 3, 4 models accepted
+    service.validate_request(["mock:model-a"], "Valid prompt")
     service.validate_request(["mock:model-a", "mock:model-b"], "Valid prompt")
     service.validate_request(["mock:model-a", "mock:model-b", "mock:model-c"], "Valid prompt")
     service.validate_request(["mock:model-a", "mock:model-b", "mock:model-c", "mock:model-d"], "Valid prompt")
@@ -120,14 +121,14 @@ async def test_partial_failures():
     assert res["failed_count"] == 2
     assert res["has_sufficient_models"] is True
 
-    # 4 selected: 3 fail, 1 succeed -> has_sufficient_models False
-    mock_prov_3_fail = MockProvider(failing_models={"model-b", "model-c", "model-d"})
-    registry.register_provider(mock_prov_3_fail)
+    # 4 selected: 4 fail, 0 succeed -> has_sufficient_models False
+    mock_prov_all_fail = MockProvider(failing_models={"model-a", "model-b", "model-c", "model-d"})
+    registry.register_provider(mock_prov_all_fail)
     res_fail = await gen_service.generate_answers(
         models=["mock:model-a", "mock:model-b", "mock:model-c", "mock:model-d"],
         prompt="Design a distributed cache"
     )
-    assert res_fail["successful_count"] == 1
+    assert res_fail["successful_count"] == 0
     assert res_fail["has_sufficient_models"] is False
     assert res_fail["status"] == "INSUFFICIENT_SUCCESSFUL_MODELS"
 
@@ -197,7 +198,10 @@ def test_ranking_engine():
 
 @pytest.mark.asyncio
 async def test_comparison_service_manual_and_generate():
-    service = ComparisonService(judge=MockJudgeEvaluator())
+    registry = ModelRegistry()
+    registry.register_provider(MockProvider())
+    gen_service = GenerationService(registry=registry)
+    service = ComparisonService(judge=MockJudgeEvaluator(), generation_service=gen_service)
 
     # Mode 2: Manual Compare
     manual_report = await service.run_manual_compare(

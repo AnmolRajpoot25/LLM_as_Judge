@@ -1,6 +1,58 @@
+import urllib.parse
 from typing import Optional
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def clean_database_url(raw_url: Optional[str]) -> str:
+    """Sanitize database URL against common formatting mistakes:
+    - Strips surrounding single/double quotes and whitespace
+    - Normalizes deprecated postgres:// scheme to postgresql://
+    - Removes accidental bracket enclosures like [PASSWORD]
+    - URL-encodes special characters (such as @ in password)
+    """
+    if not raw_url:
+        return "sqlite:///./llm_judge.db"
+
+    url = str(raw_url).strip().strip("'\"").strip()
+    if not url:
+        return "sqlite:///./llm_judge.db"
+
+    # Normalize deprecated postgres:// prefix
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+
+    # For network URLs, clean credentials and authority
+    if "://" in url:
+        scheme, rest = url.split("://", 1)
+        if scheme == "postgres":
+            scheme = "postgresql"
+
+        path_part = ""
+        if "/" in rest:
+            authority, path_part = rest.split("/", 1)
+            path_part = "/" + path_part
+        else:
+            authority = rest
+
+        if "@" in authority:
+            user_info, host_port = authority.rsplit("@", 1)
+            if ":" in user_info:
+                user, pwd = user_info.split(":", 1)
+                # Strip square brackets if copied like [YOUR-PASSWORD]
+                if pwd.startswith("[") and pwd.endswith("]"):
+                    pwd = pwd[1:-1]
+                if user.startswith("[") and user.endswith("]"):
+                    user = user[1:-1]
+                # Decode first to avoid double-encoding %40, then quote safely
+                decoded_pwd = urllib.parse.unquote(pwd)
+                encoded_pwd = urllib.parse.quote(decoded_pwd, safe="")
+                user_info = f"{user}:{encoded_pwd}"
+            authority = f"{user_info}@{host_port}"
+
+        url = f"{scheme}://{authority}{path_part}"
+
+    return url
 
 
 class Settings(BaseSettings):
@@ -13,6 +65,12 @@ class Settings(BaseSettings):
     app_env: str = Field(default="development", description="Application environment")
     log_level: str = Field(default="INFO", description="Logging level")
     database_url: str = Field(default="sqlite:///./llm_judge.db", description="Database connection URL")
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def validate_database_url(cls, v: Optional[str]) -> str:
+        return clean_database_url(v)
+
 
     # API Keys (loaded from environment or .env)
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
