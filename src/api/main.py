@@ -38,26 +38,26 @@ app = FastAPI(
 
 import os
 
-# CORS middleware for React / Vite frontend
-cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "")
-allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
-default_origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-for origin in default_origins:
-    if origin not in allowed_origins:
-        allowed_origins.append(origin)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS middleware for React / Vite frontend (supports Vercel, localhost, and custom domains)
+cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
+if cors_env:
+    allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Allow any HTTP / HTTPS origin (Vercel deployments, preview URLs, localhost)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"https?://.*",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Include Routers
 app.include_router(auth_router)

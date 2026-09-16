@@ -10,14 +10,29 @@ import type {
   ProviderKeyStatus,
 } from "../types/auth";
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000/api";
+const rawBase = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000/api";
+export const API_BASE = rawBase.replace(/\/+$/, "");
+
+async function safeFetch(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("Load failed") || msg.includes("aborted")) {
+      throw new Error(
+        `Unable to reach API server at ${API_BASE}. If using Render free tier, the instance may be starting up (takes ~30-45s), or ensure VITE_API_BASE_URL is configured in your Vercel project settings.`
+      );
+    }
+    throw err;
+  }
+}
 
 export async function fetchAvailableModels(authToken?: string | null): Promise<ModelInfo[]> {
   const headers: Record<string, string> = {};
   if (authToken) {
     headers["Authorization"] = `Bearer ${authToken}`;
   }
-  const res = await fetch(`${API_BASE}/models`, { headers });
+  const res = await safeFetch(`${API_BASE}/models`, { headers });
   if (!res.ok) {
     throw new Error(`Failed to fetch models (HTTP ${res.status})`);
   }
@@ -43,7 +58,7 @@ export async function executeGenerateCompare(payload: {
   }
 
   const { authToken, ...bodyData } = payload;
-  const res = await fetch(`${API_BASE}/generate-compare`, {
+  const res = await safeFetch(`${API_BASE}/generate-compare`, {
     method: "POST",
     headers,
     body: JSON.stringify(bodyData),
@@ -70,7 +85,7 @@ export async function executeManualCompare(payload: {
   }
 
   const { authToken, ...bodyData } = payload;
-  const res = await fetch(`${API_BASE}/manual-compare`, {
+  const res = await safeFetch(`${API_BASE}/manual-compare`, {
     method: "POST",
     headers,
     body: JSON.stringify(bodyData),
@@ -96,7 +111,7 @@ export async function saveSessionReport(
     headers["Authorization"] = `Bearer ${authToken}`;
   }
 
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/save`, {
+  const res = await safeFetch(`${API_BASE}/sessions/${sessionId}/save`, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -119,7 +134,7 @@ export async function fetchSavedSession(sessionId: string, authToken?: string | 
     headers["Authorization"] = `Bearer ${authToken}`;
   }
 
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}`, { headers });
+  const res = await safeFetch(`${API_BASE}/sessions/${sessionId}`, { headers });
   if (!res.ok) {
     throw new Error(`Failed to load session ${sessionId}`);
   }
@@ -133,7 +148,7 @@ export async function fetchSavedSessions(authToken?: string | null): Promise<Sav
     headers["Authorization"] = `Bearer ${authToken}`;
   }
 
-  const res = await fetch(`${API_BASE}/sessions`, { headers });
+  const res = await safeFetch(`${API_BASE}/sessions`, { headers });
   if (!res.ok) {
     throw new Error("Failed to load session history");
   }
@@ -147,7 +162,7 @@ export async function apiRegister(
   email: string,
   password: string
 ): Promise<AuthResponse> {
-  const res = await fetch(`${API_BASE}/auth/register`, {
+  const res = await safeFetch(`${API_BASE}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, email, password }),
@@ -164,7 +179,7 @@ export async function apiLogin(
   username_or_email: string,
   password: string
 ): Promise<AuthResponse> {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+  const res = await safeFetch(`${API_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username_or_email, password }),
@@ -178,7 +193,7 @@ export async function apiLogin(
 }
 
 export async function apiGetMe(token: string): Promise<UserProfile> {
-  const res = await fetch(`${API_BASE}/auth/me`, {
+  const res = await safeFetch(`${API_BASE}/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -191,7 +206,7 @@ export async function apiGetMe(token: string): Promise<UserProfile> {
 
 /* User API Keys Management API Calls */
 export async function apiGetUserKeys(token: string): Promise<Record<string, ProviderKeyStatus>> {
-  const res = await fetch(`${API_BASE}/user/keys`, {
+  const res = await safeFetch(`${API_BASE}/user/keys`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -206,7 +221,7 @@ export async function apiSaveUserKeys(
   token: string,
   keys: Record<string, string | null>
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/user/keys`, {
+  const res = await safeFetch(`${API_BASE}/user/keys`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -227,7 +242,7 @@ export async function apiTestUserKey(
   provider: string,
   api_key?: string
 ): Promise<{ success: boolean; provider: string; message: string }> {
-  const res = await fetch(`${API_BASE}/user/keys/test`, {
+  const res = await safeFetch(`${API_BASE}/user/keys/test`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
