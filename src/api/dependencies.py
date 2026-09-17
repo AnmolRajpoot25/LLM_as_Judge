@@ -20,5 +20,4 @@ def get_session_repo(db: Session = None) -> SessionRepository:
 
 def get_comparison_service() -> ComparisonService:
     """Instantiate ComparisonService with active judge."""
-    active_judge = judge_manager.get_judge()
-    return ComparisonService(judge=active_judge)
+    return ComparisonService()
