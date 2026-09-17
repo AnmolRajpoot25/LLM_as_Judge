@@ -14,3 +14,4 @@ pytest-asyncio>=0.23.0
 # transformers>=4.38.0
 # bitsandbytes>=0.42.0
 # accelerate>=0.27.0
+gradio_client
