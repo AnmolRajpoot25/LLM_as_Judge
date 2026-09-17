@@ -1,121 +1,115 @@
 import json
 import re
 
-try:
-    import torch
-except ImportError:
-    torch = None
-
-from src.judge.prompts import JUDGE_SYSTEM_PROMPT
+from gradio_client import Client
 
 
 class JudgeEvaluator:
+    """
+    Evaluator using the fine-tuned Qwen2.5-7B model
+    deployed on Hugging Face ZeroGPU.
 
-    CRITERIA = {
-        "correctness": 0.40,
-        "relevance": 0.20,
-        "completeness": 0.15,
-        "reasoning": 0.15,
-        "clarity": 0.10
-    }
+    HF Space:
+        Anmol2507/LLM_as_Judge_API
+
+    API endpoint:
+        /judge
+
+    Expected model response:
+        {"A": "correct", "B": "incorrect"}
+    """
+
+    HF_SPACE = "Anmol2507/LLM_as_Judge_API"
+    API_NAME = "/judge"
 
     def __init__(
         self,
-        model,
-        tokenizer,
-        max_new_tokens=300,
+        model=None,
+        tokenizer=None,
+        max_new_tokens=32,
         max_retries=1
     ):
+        """
+        model and tokenizer are kept as optional arguments for
+        backward compatibility with the existing project.
+
+        The actual evaluation is performed remotely through
+        the Hugging Face Gradio API.
+        """
+
         self.model = model
         self.tokenizer = tokenizer
         self.max_new_tokens = max_new_tokens
         self.max_retries = max_retries
 
-    def _build_messages(
+        # Connect to the deployed Hugging Face Space.
+        self.client = Client(self.HF_SPACE)
+
+    # ========================================================
+    # REMOTE GENERATION
+    # ========================================================
+
+    def _generate(
         self,
         problem,
         answer_a,
         answer_b
     ):
-        return [
-            {
-                "role": "system",
-                "content": JUDGE_SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": f"""
-PROBLEM:
+        """
+        Send the problem and two answers to the
+        Hugging Face judge API.
+        """
 
-{problem}
-
-ANSWER A:
-
-{answer_a}
-
-ANSWER B:
-
-{answer_b}
-
-Evaluate both answers independently.
-
-Return ONLY the required JSON.
-"""
-            }
-        ]
-
-    def _generate(self, messages):
-        if torch is None:
-            raise RuntimeError(
-                "PyTorch is not installed in this environment. "
-                "To evaluate with Qwen, either install PyTorch or configure QWEN_HF_API_URL "
-                "to use the remote Hugging Face Inference Space/API."
-            )
-
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True
+        response = self.client.predict(
+            problem=problem,
+            answer_a=answer_a,
+            answer_b=answer_b,
+            api_name=self.API_NAME
         )
 
-        inputs = self.tokenizer(
-            text,
-            return_tensors="pt"
-        )
+        # Gradio normally returns the output as a string.
+        if isinstance(response, str):
+            return response.strip()
 
-        inputs = {
-            key: value.to(self.model.device)
-            for key, value in inputs.items()
-        }
+        # Handle unexpected structured responses safely.
+        if isinstance(response, dict):
+            return json.dumps(response)
 
-        with torch.inference_mode():
+        return str(response).strip()
 
-            outputs = self.model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                do_sample=False
-            )
-
-        input_length = inputs["input_ids"].shape[1]
-
-        generated_tokens = outputs[0][input_length:]
-
-        response = self.tokenizer.decode(
-            generated_tokens,
-            skip_special_tokens=True
-        )
-
-        return response.strip()
+    # ========================================================
+    # JSON EXTRACTION
+    # ========================================================
 
     def _extract_json(self, response):
+        """
+        Extract JSON from the judge response.
+
+        Supports:
+        1. Pure JSON
+        2. Markdown JSON code blocks
+        3. JSON embedded inside additional text
+        """
+
+        if not response:
+            raise ValueError(
+                "Judge returned an empty response."
+            )
 
         response = response.strip()
 
+        # ----------------------------------------------------
+        # Case 1: Direct JSON
+        # ----------------------------------------------------
+
         try:
             return json.loads(response)
-
         except json.JSONDecodeError:
             pass
+
+        # ----------------------------------------------------
+        # Case 2: Markdown code block
+        # ----------------------------------------------------
 
         cleaned = re.sub(
             r"```(?:json)?",
@@ -131,9 +125,12 @@ Return ONLY the required JSON.
 
         try:
             return json.loads(cleaned)
-
         except json.JSONDecodeError:
             pass
+
+        # ----------------------------------------------------
+        # Case 3: JSON embedded in text
+        # ----------------------------------------------------
 
         match = re.search(
             r"\{.*\}",
@@ -148,181 +145,190 @@ Return ONLY the required JSON.
 
         try:
             return json.loads(match.group())
-
         except json.JSONDecodeError as error:
             raise ValueError(
                 f"Failed to parse judge JSON: {error}"
             ) from error
 
-    def _validate_scores(self, scores):
+    # ========================================================
+    # RESPONSE VALIDATION
+    # ========================================================
 
-        required_criteria = set(
-            self.CRITERIA.keys()
-        )
+    def _validate_response(
+        self,
+        response
+    ):
+        """
+        Validate the correctness-only response from
+        the fine-tuned judge.
+        """
+
+        if not isinstance(response, dict):
+            raise ValueError(
+                "Judge response must be a JSON object."
+            )
+
+        # ----------------------------------------------------
+        # Exactly A and B should be present.
+        # ----------------------------------------------------
+
+        if set(response.keys()) != {"A", "B"}:
+            raise ValueError(
+                'Judge response must contain exactly '
+                '"A" and "B".'
+            )
+
+        # ----------------------------------------------------
+        # Validate labels.
+        # ----------------------------------------------------
+
+        allowed_labels = {
+            "correct",
+            "incorrect"
+        }
 
         for candidate in ["A", "B"]:
 
-            if candidate not in scores:
+            value = response[candidate]
+
+            if not isinstance(value, str):
                 raise ValueError(
-                    f"Missing candidate: {candidate}"
+                    f"{candidate} must be a string."
                 )
 
-            candidate_scores = scores[candidate]
+            value = value.strip().lower()
 
-            if not isinstance(
-                candidate_scores,
-                dict
-            ):
+            if value not in allowed_labels:
                 raise ValueError(
-                    f"{candidate} must contain an object."
+                    f"{candidate} must be either "
+                    '"correct" or "incorrect".'
                 )
 
-            missing = (
-                required_criteria
-                - set(candidate_scores.keys())
-            )
+            response[candidate] = value
 
-            if missing:
-                raise ValueError(
-                    f"Missing scores for {candidate}: {missing}"
-                )
+        return response
 
-            for criterion in required_criteria:
-
-                value = candidate_scores[criterion]
-
-                if (
-                    isinstance(value, bool)
-                    or not isinstance(value, int)
-                ):
-                    raise ValueError(
-                        f"{candidate}.{criterion} "
-                        "must be an integer."
-                    )
-
-                if not 0 <= value <= 10:
-                    raise ValueError(
-                        f"{candidate}.{criterion} "
-                        "must be between 0 and 10."
-                    )
-
-            if "feedback" not in candidate_scores:
-                raise ValueError(
-                    f"Missing feedback for {candidate}"
-                )
-
-            if not isinstance(
-                candidate_scores["feedback"],
-                str
-            ):
-                raise ValueError(
-                    f"{candidate}.feedback must be a string."
-                )
-
-    def _calculate_final_score(
-        self,
-        scores
-    ):
-
-        final_score = 0.0
-
-        for criterion, weight in self.CRITERIA.items():
-
-            final_score += (
-                scores[criterion] * weight
-            )
-
-        return round(
-            final_score,
-            2
-        )
+    # ========================================================
+    # DETERMINE WINNER
+    # ========================================================
 
     def _determine_winner(
         self,
-        scores
+        response
     ):
+        """
+        Determine winner from correctness labels.
+        """
 
-        score_a = scores["A"]["final_score"]
-        score_b = scores["B"]["final_score"]
-
-        if score_a > score_b:
-            return "A"
-
-        if score_b > score_a:
-            return "B"
-
-        return "TIE"
-
-    def _calculate_confidence(
-        self,
-        score_a,
-        score_b
-    ):
-
-        difference = abs(
-            score_a - score_b
+        a_correct = (
+            response["A"] == "correct"
         )
 
-        if difference >= 2.0:
-            return 0.90
+        b_correct = (
+            response["B"] == "correct"
+        )
 
-        if difference >= 1.0:
-            return 0.75
+        if a_correct and not b_correct:
+            return "A"
 
-        if difference >= 0.5:
-            return 0.60
+        if b_correct and not a_correct:
+            return "B"
 
-        return 0.50
+        # Both correct OR both incorrect.
+        return "TIE"
+
+    # ========================================================
+    # BUILD RESULT
+    # ========================================================
 
     def _build_result(
         self,
-        scores
+        response
     ):
-
-        scores["A"]["final_score"] = (
-            self._calculate_final_score(
-                scores["A"]
-            )
-        )
-
-        scores["B"]["final_score"] = (
-            self._calculate_final_score(
-                scores["B"]
-            )
-        )
+        """
+        Convert the native judge response into the
+        project's existing result structure.
+        """
 
         winner = self._determine_winner(
-            scores
+            response
         )
 
-        confidence = self._calculate_confidence(
-            scores["A"]["final_score"],
-            scores["B"]["final_score"]
-        )
+        # ----------------------------------------------------
+        # Generate a concise reason.
+        # ----------------------------------------------------
 
-        if winner == "TIE":
+        if winner == "A":
 
             reason = (
-                "Both answers received equal "
-                "weighted scores."
+                "Answer A was judged correct while "
+                "Answer B was judged incorrect."
+            )
+
+        elif winner == "B":
+
+            reason = (
+                "Answer B was judged correct while "
+                "Answer A was judged incorrect."
+            )
+
+        elif (
+            response["A"] == "correct"
+            and response["B"] == "correct"
+        ):
+
+            reason = (
+                "Both answers were judged correct."
             )
 
         else:
 
-            reason = scores[winner]["feedback"]
+            reason = (
+                "Both answers were judged incorrect."
+            )
+
+        # ----------------------------------------------------
+        # Compatibility structure.
+        #
+        # These are correctness indicators, NOT the old
+        # 0-10 criterion scores.
+        # ----------------------------------------------------
+
+        scores = {
+            "A": {
+                "correctness": (
+                    1 if response["A"] == "correct" else 0
+                ),
+                "label": response["A"]
+            },
+            "B": {
+                "correctness": (
+                    1 if response["B"] == "correct" else 0
+                ),
+                "label": response["B"]
+            }
+        }
+
+        # ----------------------------------------------------
+        # Confidence is only a simple certainty indicator
+        # based on whether the judge separated the answers.
+        # ----------------------------------------------------
+
+        if winner == "TIE":
+            confidence = 0.50
+        else:
+            confidence = 1.00
 
         return {
             "winner": winner,
-
-            "scores": {
-                "A": scores["A"],
-                "B": scores["B"]
-            },
-
+            "scores": scores,
             "confidence": confidence,
-
             "reason": reason
         }
+
+    # ========================================================
+    # PUBLIC EVALUATE METHOD
+    # ========================================================
 
     def evaluate(
         self,
@@ -330,6 +336,14 @@ Return ONLY the required JSON.
         answer_a,
         answer_b
     ):
+        """
+        Evaluate two answers using the remote
+        fine-tuned Qwen judge.
+        """
+
+        # ----------------------------------------------------
+        # Input validation
+        # ----------------------------------------------------
 
         if not problem or not problem.strip():
             raise ValueError(
@@ -346,14 +360,12 @@ Return ONLY the required JSON.
                 "Answer B cannot be empty."
             )
 
-        messages = self._build_messages(
-            problem,
-            answer_a,
-            answer_b
-        )
-
         last_error = None
         raw_response = None
+
+        # ----------------------------------------------------
+        # Retry if the remote model returns invalid JSON.
+        # ----------------------------------------------------
 
         for attempt in range(
             self.max_retries + 1
@@ -361,9 +373,19 @@ Return ONLY the required JSON.
 
             try:
 
+                # --------------------------------------------
+                # Call Hugging Face ZeroGPU
+                # --------------------------------------------
+
                 raw_response = self._generate(
-                    messages
+                    problem=problem,
+                    answer_a=answer_a,
+                    answer_b=answer_b
                 )
+
+                # --------------------------------------------
+                # Parse JSON
+                # --------------------------------------------
 
                 parsed_response = (
                     self._extract_json(
@@ -371,9 +393,19 @@ Return ONLY the required JSON.
                     )
                 )
 
-                self._validate_scores(
-                    parsed_response
+                # --------------------------------------------
+                # Validate response
+                # --------------------------------------------
+
+                parsed_response = (
+                    self._validate_response(
+                        parsed_response
+                    )
                 )
+
+                # --------------------------------------------
+                # Build project result
+                # --------------------------------------------
 
                 result = self._build_result(
                     parsed_response
@@ -389,40 +421,9 @@ Return ONLY the required JSON.
 
                 last_error = error
 
-                if attempt < self.max_retries:
-
-                    messages = self._build_messages(
-                        problem,
-                        answer_a,
-                        answer_b
-                    )
-
-                    messages.append({
-                        "role": "user",
-                        "content": """
-Your previous response was invalid.
-
-Return ONLY valid JSON.
-
-Requirements:
-
-- Use exactly two top-level keys: "A" and "B".
-- Do not create any other top-level keys.
-- Each candidate must contain:
-  correctness
-  relevance
-  completeness
-  reasoning
-  clarity
-  feedback
-- All scores must be integers from 0 to 10.
-- Feedback must be a string.
-- Use double quotes for all JSON keys.
-- Do not use trailing commas.
-- Do not use markdown.
-- Do not include any text outside the JSON object.
-"""
-                    })
+        # ----------------------------------------------------
+        # All attempts failed.
+        # ----------------------------------------------------
 
         raise ValueError(
             f"Judge evaluation failed after "

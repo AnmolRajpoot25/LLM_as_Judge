@@ -17,7 +17,13 @@ class MockJudgeEvaluator:
     Evaluates answers deterministically based on answer quality heuristics.
     """
 
-    CRITERIA = JudgeEvaluator.CRITERIA
+    CRITERIA = {
+        "correctness": 0.40,
+        "relevance": 0.20,
+        "completeness": 0.15,
+        "reasoning": 0.15,
+        "clarity": 0.10
+    }
 
     def __init__(self, max_new_tokens: int = 300, max_retries: int = 1):
         self.max_new_tokens = max_new_tokens
@@ -120,18 +126,10 @@ class JudgeManager:
         self._judge_instance = judge
 
     def get_judge(self) -> Any:
-        """Get the active judge, prioritizing Hugging Face remote judge if configured, else Mock."""
+        """Get the active judge, defaulting to remote Hugging Face JudgeEvaluator."""
         if self._judge_instance is None:
-            from src.config.settings import settings
-            if settings.qwen_hf_api_url:
-                from src.judge.hf_evaluator import HuggingFaceJudgeEvaluator
-                logger.info("Initializing remote Hugging Face Qwen Judge at '%s'", settings.qwen_hf_api_url)
-                self._judge_instance = HuggingFaceJudgeEvaluator(
-                    api_url=settings.qwen_hf_api_url,
-                    token=settings.qwen_hf_token
-                )
-            else:
-                self._judge_instance = MockJudgeEvaluator()
+            from src.judge.evaluator import JudgeEvaluator
+            self._judge_instance = JudgeEvaluator()
         return self._judge_instance
 
     def load_qwen_judge(
