@@ -11,6 +11,7 @@ import uuid
 import logging
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from cryptography.fernet import Fernet
 from src.database.models import UserRecord
 
@@ -190,7 +191,10 @@ class AuthService:
 
         user = (
             db.query(UserRecord)
-            .filter((UserRecord.username == query_val) | (UserRecord.email == query_val.lower()))
+            .filter(
+                (func.lower(UserRecord.username) == query_val.lower()) | 
+                (UserRecord.email == query_val.lower())
+            )
             .first()
         )
         if not user or not cls.verify_password(password, user.password_hash):
