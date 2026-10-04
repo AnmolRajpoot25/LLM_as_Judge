@@ -1,6 +1,7 @@
 """Database connection and session factory."""
 
 import logging
+# pyrefly: ignore [missing-import]
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker

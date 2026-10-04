@@ -222,6 +222,18 @@ If $M_1 \neq M_2$, the system flags a **Position Bias Warning** in the telemetry
 
 The judge model was trained using Parameter-Efficient Fine-Tuning (PEFT) with Low-Rank Adaptation (LoRA) on the base model `Qwen/Qwen2.5-7B-Instruct`.
 
+### Advanced Fine-Tuning Strategies
+
+The comprehensive data pipelines, advanced training strategies, and evaluation harnesses used to develop this judge are maintained in a dedicated repository:
+👉 **[Qwen Fine-Tuning Strategies for LLM-as-a-Judge](https://github.com/AnmolRajpoot25/Qwen_Fine_Tuning_strategies_used_in_LLM_AS_JUDGE-)**
+
+Key techniques employed to ensure the judge is reliable, calibrated, and unbiased include:
+
+- **Anti-Position-Bias Design (Swap-Augmentation)**: Training data is swap-augmented (Answer A and B are flipped) to explicitly teach the model position invariance. Crucially, the dataset is split into training and validation *before* augmentation to prevent data leakage.
+- **Dual-Order Benchmarking**: The model is rigorously evaluated by running each pair twice (in both orders). This allows us to measure **position consistency** and **position bias rate**, ensuring that verdicts survive candidate swapping.
+- **4-bit NF4 QLoRA**: Quantization enables training on consumer GPUs (e.g., dual T4s) while maintaining high precision, utilizing DDP (Distributed Data Parallel) orchestration.
+- **Failure-Type Breakdowns**: Benchmarking goes beyond flat accuracy to track granular failure modes (e.g., `logic_error`, `off_by_one`, `duplicate_request`), pinpointing discrimination failures rather than just positional ones.
+
 ### Training Hyperparameters
 
 ```python
