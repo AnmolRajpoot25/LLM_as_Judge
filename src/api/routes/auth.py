@@ -1,11 +1,21 @@
 """Authentication API routes for user registration, login, and session validation."""
 
+import time
+from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Header
-from pydantic import BaseModel, Field, EmailStr
-from sqlalchemy.orm import Session
-from src.database.connection import get_db
-from src.services.auth import AuthService
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from src.config.database import get_db
+from src.models import User
+from src.services.auth_jwt import (
+    verify_password,
+    get_password_hash,
+    create_access_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+)
+from src.api.dependencies import get_current_user_required, get_current_user_optional
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -21,85 +31,169 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1)
 
 
-def get_current_user_optional(
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db)
-):
-    """Optional dependency extracting user from Authorization: Bearer <token>."""
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-    token = authorization.replace("Bearer ", "").strip()
-    return AuthService.get_current_user_from_token(db, token)
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
 
 
-def get_current_user_required(
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db)
-):
-    """Required dependency requiring valid authenticated user."""
-    user = get_current_user_optional(authorization, db)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Please provide a valid Bearer token."
-        )
-    return user
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    email: str
+    created_at: str | None = None
 
 
-@router.post("/register")
-async def register(request: RegisterRequest, db: Session = Depends(get_db)):
+class AuthResponse(BaseModel):
+    success: bool
+    user: UserResponse
+    token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class MeResponse(BaseModel):
+    success: bool = True
+    user: UserResponse
+
+
+@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_200_OK)
+async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Register a new user account."""
-    try:
-        result = AuthService.register_user(
-            db=db,
-            username=request.username,
-            email=request.email,
-            password=request.password
-        )
-        return {"success": True, **result}
-    except ValueError as exc:
+    clean_user = request.username.strip()
+    clean_email = request.email.strip().lower()
+
+    if len(clean_user) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc)
+            detail="Username must be at least 3 characters long."
         )
-    except Exception as exc:
+    if len(request.password) < 6:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Registration failed: {str(exc)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters long."
+        )
+    if "@" not in clean_email or "." not in clean_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid email address is required."
         )
 
+    # Check existing
+    existing_user = await db.execute(
+        select(User).where(
+            (User.username == clean_user) | (User.email == clean_email)
+        )
+    )
+    if existing_user.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username or email already registered."
+        )
 
-@router.post("/login")
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    user_id = f"usr-{clean_user[:10]}-{int(time.time() * 1000) % 1000000:06d}"
+    pwd_hash = get_password_hash(request.password)
+
+    new_user = User(
+        id=user_id,
+        username=clean_user,
+        email=clean_email,
+        password_hash=pwd_hash,
+    )
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+
+    expires_seconds = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    access_token = create_access_token(
+        data={"sub": new_user.id, "username": new_user.username},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+
+    return AuthResponse(
+        success=True,
+        user=UserResponse(
+            id=new_user.id,
+            username=new_user.username,
+            email=new_user.email,
+            created_at=new_user.created_at.isoformat() if new_user.created_at else None,
+        ),
+        token=access_token,
+        token_type="bearer",
+        expires_in=expires_seconds,
+    )
+
+
+@router.post("/login", response_model=AuthResponse)
+async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Log in and retrieve auth bearer token."""
-    try:
-        result = AuthService.authenticate_user(
-            db=db,
-            username_or_email=request.username_or_email,
-            password=request.password
+    query_val = request.username_or_email.strip()
+
+    result = await db.execute(
+        select(User).where(
+            (User.username.ilike(query_val)) | (User.email == query_val.lower())
         )
-        return {"success": True, **result}
-    except ValueError as exc:
+    )
+    user = result.scalar_one_or_none()
+
+    if not user or not verify_password(request.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(exc)
+            detail="Invalid username/email or password.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    except Exception as exc:
+
+    if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Login failed: {str(exc)}"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is disabled.",
         )
 
+    user.last_login = datetime.utcnow()
+    await db.commit()
 
-@router.get("/me")
-async def get_me(user=Depends(get_current_user_required)):
+    expires_seconds = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    access_token = create_access_token(
+        data={"sub": user.id, "username": user.username},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+
+    return AuthResponse(
+        success=True,
+        user=UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            created_at=user.created_at.isoformat() if user.created_at else None,
+        ),
+        token=access_token,
+        token_type="bearer",
+        expires_in=expires_seconds,
+    )
+
+
+@router.get("/me", response_model=MeResponse)
+async def get_me(current_user: User = Depends(get_current_user_required)):
     """Get authenticated user profile."""
-    return {
-        "success": True,
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "created_at": user.created_at.isoformat() if user.created_at else None
-        }
-    }
+    return MeResponse(
+        success=True,
+        user=UserResponse(
+            id=current_user.id,
+            username=current_user.username,
+            email=current_user.email,
+            created_at=current_user.created_at.isoformat() if current_user.created_at else None,
+        )
+    )
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh_token(current_user: User = Depends(get_current_user_required)):
+    """Refresh access token."""
+    access_token = create_access_token(
+        data={"sub": current_user.id, "username": current_user.username},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    return TokenResponse(
+        access_token=access_token,
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
