@@ -100,5 +100,21 @@ class Settings(BaseSettings):
     qwen_hf_api_url: Optional[str] = Field(default=None, alias="QWEN_HF_API_URL")
     qwen_hf_token: Optional[str] = Field(default=None, alias="QWEN_HF_TOKEN")
 
+    # Authentication & Security
+    jwt_secret_key: str = Field(default="change-this-to-a-secure-random-secret-key-in-production", alias="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    jwt_expire_minutes: int = Field(default=60 * 24 * 7, alias="JWT_EXPIRE_MINUTES")  # 7 days
+    encryption_secret_key: str = Field(default="change-this-to-a-secure-key-for-encrypting-user-api-keys", alias="ENCRYPTION_SECRET_KEY")
+    cors_allowed_origins: str = Field(default="http://localhost:5173,http://127.0.0.1:5173", alias="CORS_ALLOWED_ORIGINS")
+
+    # Redis / Celery
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    celery_broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
+    celery_result_backend: str = Field(default="redis://localhost:6379/0", alias="CELERY_RESULT_BACKEND")
+
+    # Rate Limiting
+    rate_limit_requests: int = Field(default=10, alias="RATE_LIMIT_REQUESTS")
+    rate_limit_window: str = Field(default="minute", alias="RATE_LIMIT_WINDOW")
+
 
 settings = Settings()
