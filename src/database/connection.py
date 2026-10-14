@@ -70,6 +70,19 @@ def init_db():
                 if "user_id" not in col_names:
                     conn.execute(text("ALTER TABLE sessions ADD COLUMN user_id VARCHAR(64)"))
                     conn.commit()
+
+                res_users = conn.execute(text("PRAGMA table_info(users)")).fetchall()
+                user_cols = [r[1] for r in res_users]
+                if user_cols:
+                    if "is_active" not in user_cols:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1"))
+                    if "is_superuser" not in user_cols:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN is_superuser BOOLEAN DEFAULT 0"))
+                    if "updated_at" not in user_cols:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN updated_at DATETIME"))
+                    if "last_login" not in user_cols:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN last_login DATETIME"))
+                    conn.commit()
         except Exception:
             pass
 

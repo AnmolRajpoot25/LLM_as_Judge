@@ -121,7 +121,11 @@ class UserRecord(Base):
     username = Column(String(64), unique=True, index=True, nullable=False)
     email = Column(String(128), unique=True, index=True, nullable=False)
     password_hash = Column(String(256), nullable=False)
+    is_active = Column(Boolean, default=True)
+    is_superuser = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
+    last_login = Column(DateTime, nullable=True)
 
     api_keys = relationship("UserApiKeyRecord", back_populates="user", cascade="all, delete-orphan")
     sessions = relationship("SessionRecord", back_populates="user")
