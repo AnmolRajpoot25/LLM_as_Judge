@@ -1,16 +1,21 @@
 # LLM-as-a-Judge: Production-Grade LLM Evaluation & Pairwise Benchmarking Platform
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![SQLAlchemy 2.0 Async](https://img.shields.io/badge/SQLAlchemy-2.0%20Async-D71F00.svg?logo=sqlalchemy&logoColor=white)](https://www.sqlalchemy.org/)
+[![Alembic](https://img.shields.io/badge/Alembic-Migrations-orange.svg)](https://alembic.sqlalchemy.org/)
+[![Celery](https://img.shields.io/badge/Celery-5.6-37814A.svg?logo=celery&logoColor=white)](https://docs.celeryq.dev/)
+[![Redis](https://img.shields.io/badge/Redis-7.0-DC382D.svg?logo=redis&logoColor=white)](https://redis.io/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C.svg?logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![JWT Auth](https://img.shields.io/badge/Auth-Stateless%20JWT-000000.svg?logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
 [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Spaces%20ZeroGPU-FFD21E.svg?logo=huggingface&logoColor=black)](https://huggingface.co/spaces/Anmol2507/LLM_as_Judge_API)
 [![Qwen 2.5](https://img.shields.io/badge/Model-Qwen2.5--7B--Instruct-6157FF.svg)](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
 [![PEFT / LoRA](https://img.shields.io/badge/Fine--Tuning-LoRA%20%2F%20PEFT-blueviolet.svg)](https://huggingface.co/Anmol2507/LLM_as_judge_fine_tuned_Qwen_7B)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)](https://react.dev)
 [![TypeScript 5.0+](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Docker](https://img.shields.io/badge/Docker-Compose%20Ready-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 
-An end-to-end, production-grade LLM evaluation platform powered by a fine-tuned **Qwen2.5-7B-Instruct** judge model deployed on **Hugging Face Spaces (ZeroGPU)**. The platform features an automated pairwise evaluation engine with bidirectional position-swap bias mitigation, standard competition ranking, real-time telemetry, and a decoupled FastAPI backend with a React 19 dashboard.
+An end-to-end, enterprise-ready LLM evaluation platform powered by a fine-tuned **Qwen2.5-7B-Instruct** judge model deployed on **Hugging Face Spaces (ZeroGPU)**. The platform features an automated pairwise evaluation tournament engine with bidirectional position-swap bias mitigation, Bradley-Terry Elo rankings, real-time telemetry, stateless JWT authentication, Celery background workers, Prometheus observability, and an asynchronous SQLAlchemy 2.0 backend paired with a React 19 dashboard.
 
 ---
 
@@ -110,26 +115,47 @@ flowchart TD
     subgraph Frontend_App [Frontend Layer]
         UI --> M1[Mode 1: Generate & Compare]
         UI --> M2[Mode 2: Manual Compare]
+        UI --> KeyMgr[User API Key Vault]
+        UI --> AuthUI[JWT Auth & Profile View]
     end
 
-    M1 -->|POST /api/generate-compare| API[FastAPI Backend Gateway]
-    M2 -->|POST /api/manual-compare| API
+    AuthUI -->|POST /api/auth/login| Gate[FastAPI API Gateway]
+    M1 -->|POST /api/generate-compare| Gate
+    M2 -->|POST /api/manual-compare| Gate
+    Prometheus([Prometheus Monitoring]) -->|GET /metrics| Gate
 
-    subgraph Backend_Services [Backend Core]
-        API --> GenSvc[GenerationService]
-        GenSvc -->|Async Concurrent Dispatch| Prov[Model Providers: OpenAI, Gemini, Ollama, OpenRouter]
+    subgraph Backend_Gateway [FastAPI Core Gateway]
+        Gate --> JWTAuth[Stateless JWT Authentication]
+        Gate --> RateLimiter[SlowAPI Redis / Memory Limiter]
+        Gate --> MetricMid[Prometheus Telemetry Middleware]
+    end
+
+    subgraph Async_DB [Database & Storage Layer]
+        JWTAuth --> AsyncORM[SQLAlchemy 2.0 Async Engine]
+        AsyncORM --> DB[(PostgreSQL pgvector / SQLite)]
+        Alembic[Alembic Migrations 001 - 003] -.-> DB
+    end
+
+    subgraph Task_Queue [Distributed Processing]
+        Gate --> RedisBroker[(Redis Message Broker)]
+        RedisBroker --> CeleryWorkers[Celery Worker Cluster]
+        RedisBroker --> FlowerDash[Flower UI :5555]
+    end
+
+    subgraph Backend_Services [Evaluation Core]
+        Gate --> GenSvc[GenerationService]
+        GenSvc -->|Concurrent Async Dispatch| Prov[Model Providers: OpenAI, Anthropic, Gemini, Ollama, OpenRouter, Grok]
         Prov --> Collect[Candidate Responses]
         
-        API --> CompSvc[ComparisonService]
+        Gate --> CompSvc[ComparisonService]
         Collect --> CompSvc
         CompSvc --> PairEval[PairwiseEvaluator]
     end
 
     subgraph Evaluation_Engine [Pairwise Engine]
         PairEval --> Perm[Combinations: N x N-1 / 2]
-        Perm --> Order1[Pass 1: A vs B]
-        Perm --> Order2[Pass 2: B vs A Optional Swap]
-        Order1 & Order2 --> Lock[asyncio.Lock Concurrency Guard]
+        PairEval --> DualPass[Bidirectional Position Swap Check]
+        DualPass --> Lock[asyncio.Lock Concurrency Guard]
     end
 
     subgraph Inference_Layer [Remote Judge: Hugging Face ZeroGPU]
@@ -144,10 +170,42 @@ flowchart TD
     RespValidator --> WinnerMap[Winner Mapping: A / B / TIE]
     WinnerMap --> ConsistencyCheck[Position Consistency Engine]
     ConsistencyCheck --> RankEng[RankingEngine: 1224 Standard Competition]
-    RankEng --> MetricsTracker[Telemetry & Wall-Clock Profiler]
-    MetricsTracker --> DB[(SQLite / PostgreSQL Persistence)]
+    RankEng --> MetricsTracker[Telemetry & Profiler]
+    MetricsTracker --> AsyncORM
     MetricsTracker --> UI
 ```
+
+---
+
+## Production Platform Architecture (v2.0)
+
+The platform features an enterprise-grade backend architecture built for production reliability, horizontal scaling, and strict observability:
+
+### 1. Asynchronous Database Engine (SQLAlchemy 2.0)
+- **High-Concurrency I/O**: Switched from synchronous blocking database calls to SQLAlchemy 2.0 async sessions with `asyncpg` (PostgreSQL) and `aiosqlite` (SQLite).
+- **Mapped Typing**: Fully type-annotated ORM models with `Mapped[...]` and `mapped_column` in `src/models/session.py` for compile-time schema safety.
+- **Connection Resiliency**: NullPool strategy for SQLite and connection pre-pinging (`pool_pre_ping=True`) for production PostgreSQL databases.
+
+### 2. Versioned Database Migrations (Alembic)
+- **Automated Upgrades**: Built-in async migration environment (`alembic/env.py`) that executes `alembic upgrade head` before API startup.
+- **Sequential Revisions**:
+  - `001_initial`: Core evaluation tournament schema (`sessions`, `generation_models`, `comparisons`, `rankings`, `metrics`).
+  - `002_add_user`: User identity, superuser access flags, and activity tracking.
+  - `003_add_user_api_keys`: Encrypted multi-provider API credentials.
+
+### 3. Stateless JWT Authentication & Native Bcrypt
+- **Secure Token Lifecycle**: Stateless Bearer token authentication powered by `python-jose` with configurable expiration and `/api/auth/refresh` endpoint.
+- **Direct Bcrypt Hashing**: Native `bcrypt.hashpw` and `bcrypt.checkpw` without deprecated third-party wrappers.
+- **Granular Dependency Injection**: Route guards (`get_current_user_required`, `get_current_user_optional`, `get_current_superuser`) enforcing access boundaries.
+
+### 4. Distributed Task Offloading (Celery + Redis)
+- **Non-Blocking Tournaments**: Heavy $N$-model combinatorial evaluation tournaments can be dispatched to asynchronous Celery worker clusters, completely preventing HTTP 504 gateway timeouts.
+- **Flower Monitoring**: Real-time worker task dashboard available out-of-the-box on port `5555`.
+
+### 5. Production Observability & Rate Limiting
+- **Prometheus Telemetry**: Real-time latency histograms (`http_request_duration_seconds`) and total request counters (`http_requests_total`) exposed at `/metrics`.
+- **DDoS & Abuse Prevention**: SlowAPI rate limiting attached to Redis in production with automatic graceful in-memory fallback for local development.
+- **Health Probing**: Standard `/health` endpoint reporting uptime and service version.
 
 ---
 
@@ -368,25 +426,36 @@ print("Judge Output:", result)
 
 ```text
 LLM_as_Judge/
+├── .github/                         # Continuous Integration workflows
+│   └── workflows/ci.yml             # Code quality, linting, tests, and Docker build CI
+├── alembic/                         # Database migration environment
+│   ├── versions/
+│   │   ├── 001_initial.py           # Core evaluation schema (sessions, rankings, metrics)
+│   │   ├── 002_add_user.py          # User management and authorization schema
+│   │   └── 003_add_user_api_keys.py # User provider encrypted API keys schema
+│   ├── env.py                       # Async migration runner
+│   └── script.py.mako
 ├── src/
-│   ├── api/
-│   │   ├── dependencies.py          # Dependency injection container
-│   │   ├── main.py                  # FastAPI application setup, CORS, lifespan
+│   ├── api/                         # FastAPI routing and middleware
+│   │   ├── middleware/
+│   │   │   └── ratelimit.py         # SlowAPI rate limiting configuration
 │   │   ├── routes/                  # API endpoints
-│   │   │   ├── auth.py              # User authentication endpoints
+│   │   │   ├── auth.py              # JWT user registration, login, and refresh
 │   │   │   ├── compare.py           # /api/manual-compare
 │   │   │   ├── generate.py          # /api/generate-compare
 │   │   │   ├── models.py            # Model registry catalog endpoints
 │   │   │   ├── sessions.py          # Session persistence endpoints
 │   │   │   └── user_keys.py         # Encrypted API key management
-│   │   └── schemas/                 # Pydantic request and response models
+│   │   ├── dependencies.py          # JWT security dependencies & service injection
+│   │   └── main.py                  # FastAPI lifespan, Prometheus metrics, routers
 │   ├── config/
+│   │   ├── database.py              # SQLAlchemy 2.0 async engine & sessionmaker
 │   │   ├── pricing.py               # Centralized LLM pricing matrix
-│   │   └── settings.py              # Environment configuration loader
+│   │   └── settings.py              # Pydantic BaseSettings environment config
 │   ├── database/
-│   │   ├── connection.py            # SQLAlchemy engine, session maker, SQLite/PostgreSQL
-│   │   ├── models.py                # ORM models (User, Session, Result, ApiKey)
-│   │   └── repository.py            # Data access layer
+│   │   ├── connection.py            # Synchronous engine & SQLite fallback migrations
+│   │   ├── models.py                # Legacy ORM models (backward-compatible)
+│   │   └── repository.py            # Data access repository layer
 │   ├── evaluation/
 │   │   ├── benchmark.py             # Basic dataset evaluation runner
 │   │   ├── hard_benchmark.py        # 100-pair hard benchmark engine
@@ -400,6 +469,10 @@ LLM_as_Judge/
 │   │   ├── evaluator.py             # Remote JudgeEvaluator (Gradio Client)
 │   │   ├── model_loader.py          # JudgeManager with concurrency lock
 │   │   └── prompts.py               # Prompt templates
+│   ├── models/                      # SQLAlchemy 2.0 type-annotated mapped models
+│   │   ├── base.py                  # DeclarativeBase
+│   │   ├── session.py               # User, UserApiKey, Session, Comparison, Ranking, Metrics
+│   │   └── __init__.py
 │   ├── providers/                   # Upstream LLM provider adapters
 │   │   ├── anthropic_provider.py    # Anthropic API adapter
 │   │   ├── base.py                  # BaseProvider interface
@@ -412,35 +485,33 @@ LLM_as_Judge/
 │   │   ├── openai_provider.py       # OpenAI API adapter
 │   │   ├── openrouter_provider.py   # OpenRouter API adapter
 │   │   └── registry.py              # Model catalog and availability manager
-│   └── services/
-│       ├── auth.py                  # PBKDF2 hashing, Fernet key encryption
-│       ├── comparison_service.py    # End-to-end Mode 1 and Mode 2 orchestrator
-│       ├── cost_calculator.py       # Per-model financial token cost calculator
-│       ├── generation_service.py    # Concurrent async candidate generation
-│       └── hf_judge_client.py       # Standalone Hugging Face Gradio client
+│   ├── services/
+│   │   ├── auth.py                  # AES-256 Fernet key encryption at rest
+│   │   ├── auth_jwt.py              # JWT token issuance, verification & native bcrypt
+│   │   ├── comparison_service.py    # End-to-end Mode 1 and Mode 2 orchestrator
+│   │   ├── cost_calculator.py       # Per-model financial token cost calculator
+│   │   ├── generation_service.py    # Concurrent async candidate generation
+│   │   └── hf_judge_client.py       # Standalone Hugging Face Gradio client
+│   └── workers/                     # Celery background workers
+│       ├── celery_app.py            # Celery instance configuration
+│       └── tasks.py                 # Async evaluation tournament tasks
 ├── frontend/                        # React 19 + TypeScript + Vite web app
 │   ├── src/
 │   │   ├── components/              # UI Components (ResultsDashboard, PromptInput, etc.)
 │   │   ├── services/api.ts          # Frontend API client
-│   │   ├── types/evaluation.ts      # TypeScript interfaces
+│   │   ├── types/                   # TypeScript interfaces (auth.ts, evaluation.ts)
 │   │   ├── App.tsx                  # Root application view
 │   │   └── index.css                # Obsidian cyber stylesheet
 │   ├── package.json
 │   └── vite.config.ts
-├── outputs/
-│   └── benchmarks/                  # Empirical benchmark result JSON files
-│       ├── hard_technical_100_results.json
-│       ├── latest_results.json
-│       ├── position_bias_results.json
-│       └── technical_50_results.json
-├── scripts/
-│   ├── create_commit_history.py
-│   └── download_models.py           # Base model download utility
-├── tests/                           # Pytest test suite (unit, API, E2E)
-├── Dockerfile                       # Multi-stage production container
-├── Procfile                         # Cloud PaaS deployment configuration
-├── requirements.txt                 # Python dependencies
-└── .env.example                     # Example environment variables
+├── tests/                           # Pytest test suite (auth, unit, API, E2E)
+├── alembic.ini                      # Alembic configuration
+├── docker-compose.yml               # Multi-service compose (Postgres, Redis, API, Worker, Flower)
+├── Dockerfile                       # Multi-stage production container with migration runner
+├── pyproject.toml                   # Modern Python project configuration (Ruff, MyPy)
+├── .python-version                  # Pinned Python runtime (3.11.9)
+├── requirements.txt                 # Pinned dependencies
+└── .env.example                     # Environment template
 ```
 
 ---
@@ -500,7 +571,30 @@ Open `http://localhost:5173` in your browser.
 
 ## Deployment Options
 
-### Docker Deployment
+### Docker Compose (Full-Stack Multi-Service)
+
+The repository provides a complete [`docker-compose.yml`](file:///d:/LLM_as_Judge/docker-compose.yml) setup that orchestrates all 5 platform services:
+
+```bash
+# Start all services in the background (Postgres, Redis, API, Worker, Flower)
+docker compose up -d --build
+
+# View logs
+docker compose logs -f api
+
+# Scale Celery evaluation workers
+docker compose up -d --scale worker=3
+```
+
+Services exposed:
+- **FastAPI API Gateway**: `http://localhost:8000`
+- **Swagger Documentation**: `http://localhost:8000/docs`
+- **Prometheus Telemetry**: `http://localhost:8000/metrics`
+- **Flower Worker Dashboard**: `http://localhost:5555`
+- **PostgreSQL Database**: `localhost:5432`
+- **Redis Cache & Broker**: `localhost:6379`
+
+### Standalone Docker Deployment
 
 A lightweight `Dockerfile` is included for containerized environments:
 
