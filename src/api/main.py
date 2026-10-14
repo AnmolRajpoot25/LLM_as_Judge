@@ -1,17 +1,26 @@
 """FastAPI application main entry point."""
 
 import logging
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from slowapi.errors import RateLimitExceeded
 from src.config.settings import settings
-from src.database.connection import init_db
+from src.config.database import init_db, close_db
+from src.database.connection import init_db as sync_init_db
+from src.api.middleware.ratelimit import limiter, rate_limit_exceeded_handler
 from src.api.routes.models import router as models_router
 from src.api.routes.generate import router as generate_router
 from src.api.routes.compare import router as compare_router
 from src.api.routes.sessions import router as sessions_router
 from src.api.routes.auth import router as auth_router
 from src.api.routes.user_keys import router as user_keys_router
+
+# Prometheus metrics
+REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"])
+REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request latency", ["method", "endpoint"])
 
 logging.basicConfig(
     level=settings.log_level,
@@ -23,10 +32,15 @@ logger = logging.getLogger("llm_judge.api")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing LLM-Judge platform services and database...")
-    init_db()
+    try:
+        sync_init_db()
+    except Exception as exc:
+        logger.warning(f"Sync DB init warning: {exc}")
+    await init_db()
     logger.info("LLM-Judge platform initialized successfully.")
     yield
     logger.info("Shutting down LLM-Judge platform.")
+    await close_db()
 
 
 app = FastAPI(
@@ -62,6 +76,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 
 @app.middleware("http")
 async def rewrite_legacy_api_prefix(request: Request, call_next):
@@ -78,6 +96,26 @@ async def rewrite_legacy_api_prefix(request: Request, call_next):
     if any(path.startswith(p) for p in legacy_prefixes) and not path.startswith("/api"):
         request.scope["path"] = f"/api{path}"
     return await call_next(request)
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Prometheus metrics middleware."""
+    start_time = time.perf_counter()
+    response: Response = await call_next(request)
+    latency = time.perf_counter() - start_time
+    
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=request.url.path,
+        status=response.status_code
+    ).inc()
+    REQUEST_LATENCY.labels(
+        method=request.method,
+        endpoint=request.url.path
+    ).observe(latency)
+    
+    return response
 
 
 # Include Routers
@@ -99,9 +137,15 @@ async def root():
     }
 
 
-@app.get("/api/health")
+@app.get("/health")
 async def health():
     return {
         "status": "healthy",
-        "environment": settings.app_env
+        "environment": settings.app_env,
+        "version": "2.0.0"
     }
+
+
+@app.get("/metrics")
+async def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
