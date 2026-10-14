@@ -7,7 +7,7 @@ from alembic import context
 
 sys.path.append(".")
 
-from src.config.settings import settings
+from src.config.settings import settings, get_async_database_url
 from src.models.base import Base
 from src.models import __all__ as models_all
 
@@ -20,12 +20,8 @@ target_metadata = Base.metadata
 
 
 def get_url():
-    url = settings.database_url
-    if url.startswith("sqlite:///"):
-        return url.replace("sqlite:///", "sqlite+aiosqlite:///")
-    if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+asyncpg://")
-    return url
+    return get_async_database_url(settings.database_url)
+
 
 
 def run_migrations_offline() -> None:

@@ -12,30 +12,47 @@ logger = logging.getLogger(__name__)
 
 def init_engine(url_str: str):
     sanitized = clean_database_url(url_str)
-    try:
-        # Validate URL format
-        make_url(sanitized)
-        is_sqlite = "sqlite" in sanitized
-        eng = create_engine(
-            sanitized,
-            connect_args={"check_same_thread": False} if is_sqlite else {},
-            pool_pre_ping=True,
-            echo=False
-        )
-        return eng, sanitized
-    except Exception as exc:
-        logger.error(
-            f"Failed to initialize database engine with URL '{url_str}': {exc}. "
-            "Falling back to local SQLite database."
-        )
-        fallback_url = "sqlite:///./llm_judge.db"
-        eng = create_engine(
-            fallback_url,
-            connect_args={"check_same_thread": False},
-            pool_pre_ping=True,
-            echo=False
-        )
-        return eng, fallback_url
+    candidate_urls = []
+    if sanitized.startswith("postgresql://"):
+        # Seamlessly support both psycopg (v3) and psycopg2-binary
+        candidate_urls.append(sanitized.replace("postgresql://", "postgresql+psycopg://", 1))
+        candidate_urls.append(sanitized.replace("postgresql://", "postgresql+psycopg2://", 1))
+        candidate_urls.append(sanitized)
+    else:
+        candidate_urls.append(sanitized)
+
+    last_error = None
+    for target_url in candidate_urls:
+        try:
+            make_url(target_url)
+            is_sqlite = "sqlite" in target_url
+            eng = create_engine(
+                target_url,
+                connect_args={"check_same_thread": False} if is_sqlite else {},
+                pool_pre_ping=True,
+                echo=False
+            )
+            # Connectivity check to verify driver and credentials
+            with eng.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            logger.info(f"Database engine successfully initialized with target scheme '{target_url.split('://')[0]}'")
+            return eng, target_url
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    logger.error(
+        f"Failed to initialize database engine with URL '{url_str}': {last_error}. "
+        "Falling back to local SQLite database."
+    )
+    fallback_url = "sqlite:///./llm_judge.db"
+    eng = create_engine(
+        fallback_url,
+        connect_args={"check_same_thread": False},
+        pool_pre_ping=True,
+        echo=False
+    )
+    return eng, fallback_url
 
 
 engine, effective_db_url = init_engine(settings.database_url)

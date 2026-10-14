@@ -55,6 +55,33 @@ def clean_database_url(raw_url: Optional[str]) -> str:
     return url
 
 
+def get_async_database_url(raw_url: Optional[str]) -> str:
+    """Convert any raw database URL into an async-compatible URL for SQLAlchemy + asyncpg / aiosqlite.
+    - Handles sqlite:/// -> sqlite+aiosqlite:///
+    - Normalizes postgresql://, postgres://, and postgresql+psycopg2:// to postgresql+asyncpg://
+    - Replaces sslmode=require with ssl=require (required by asyncpg dialect)
+    - Strips unsupported parameters like channel_binding
+    """
+    url = clean_database_url(raw_url)
+    if url.startswith("sqlite:///"):
+        return url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+
+    for prefix in ["postgresql+psycopg://", "postgresql+psycopg2://", "postgresql://", "postgres://"]:
+        if url.startswith(prefix):
+            url = "postgresql+asyncpg://" + url[len(prefix):]
+            break
+
+    if "postgresql+asyncpg://" in url:
+        import re
+        if "sslmode=" in url:
+            url = url.replace("sslmode=", "ssl=")
+        url = re.sub(r"[?&]channel_binding=[^&]+", "", url)
+        if "?" not in url and "&" in url:
+            url = url.replace("&", "?", 1)
+
+    return url
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",

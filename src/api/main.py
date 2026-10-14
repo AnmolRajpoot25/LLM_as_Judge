@@ -36,11 +36,17 @@ async def lifespan(app: FastAPI):
         sync_init_db()
     except Exception as exc:
         logger.warning(f"Sync DB init warning: {exc}")
-    await init_db()
+    try:
+        await init_db()
+    except Exception as exc:
+        logger.warning(f"Async DB init warning: {exc}")
     logger.info("LLM-Judge platform initialized successfully.")
     yield
     logger.info("Shutting down LLM-Judge platform.")
-    await close_db()
+    try:
+        await close_db()
+    except Exception as exc:
+        logger.warning(f"DB close warning: {exc}")
 
 
 app = FastAPI(
@@ -138,6 +144,7 @@ async def root():
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     return {
         "status": "healthy",

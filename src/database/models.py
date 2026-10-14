@@ -17,7 +17,7 @@ from src.database.connection import Base
 
 
 class SessionRecord(Base):
-    __tablename__ = "sessions"
+    __tablename__ = "evaluation_sessions"
 
     id = Column(String(64), primary_key=True, index=True)
     mode = Column(String(32), nullable=False)  # GENERATE_AND_COMPARE or MANUAL_COMPARE
@@ -40,7 +40,7 @@ class PromptRecord(Base):
     __tablename__ = "prompts"
 
     id = Column(String(64), primary_key=True, index=True)
-    session_id = Column(String(64), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, unique=True)
+    session_id = Column(String(64), ForeignKey("evaluation_sessions.id", ondelete="CASCADE"), nullable=False, unique=True)
     content = Column(Text, nullable=False)
     system_prompt = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
@@ -52,7 +52,7 @@ class ModelResponseRecord(Base):
     __tablename__ = "model_responses"
 
     id = Column(String(64), primary_key=True, index=True)
-    session_id = Column(String(64), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(64), ForeignKey("evaluation_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     provider = Column(String(64), nullable=False)
     model_id = Column(String(128), nullable=False)
     model_name = Column(String(128), nullable=False)
@@ -72,7 +72,7 @@ class PairwiseComparisonRecord(Base):
     __tablename__ = "pairwise_comparisons"
 
     id = Column(String(64), primary_key=True, index=True)
-    session_id = Column(String(64), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(64), ForeignKey("evaluation_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
     model_a_id = Column(String(128), nullable=False)
     model_a_name = Column(String(128), nullable=False)
     model_b_id = Column(String(128), nullable=False)
