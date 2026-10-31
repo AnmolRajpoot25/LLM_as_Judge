@@ -229,6 +229,8 @@ async def test_comparison_service_manual_and_generate():
 
 
 def test_database_selective_persistence():
+    import uuid
+
     from src.database import init_db, SessionLocal, SessionRepository
 
     init_db()
@@ -270,9 +272,10 @@ def test_database_selective_persistence():
 
     # Selective save: only prompt and answers, NOT evaluations, NOT metrics
     save_opts = {"prompt": True, "answers": True, "evaluations": False, "metrics": False, "raw_responses": False}
-    repo.save_session("test-sess-001", test_data, save_opts)
+    session_id = f"test-sess-{uuid.uuid4().hex}"
+    repo.save_session(session_id, test_data, save_opts, user_id="unit-test-user")
 
-    retrieved = repo.get_session("test-sess-001")
+    retrieved = repo.get_session(session_id, user_id="unit-test-user")
     assert retrieved is not None
     assert retrieved["input"]["prompt"] == "What is Raft consensus?"
     assert len(retrieved["answers"]) == 2
@@ -283,7 +286,7 @@ def test_database_selective_persistence():
 
     # List sessions should contain this session
     sessions_list = repo.list_sessions()
-    assert any(s["session_id"] == "test-sess-001" for s in sessions_list)
+    assert any(s["session_id"] == session_id for s in sessions_list)
     db.close()
 
 

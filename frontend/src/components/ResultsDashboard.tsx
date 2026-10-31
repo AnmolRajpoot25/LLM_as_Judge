@@ -760,7 +760,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                         gap: "8px",
                       }}
                     >
-                      {comp.position_swap_check.consistent ? (
+                      {comp.position_swap_check.error ? (
+                        <>
+                          <AlertTriangle size={16} color="#FBBF24" />
+                          <span style={{ color: "#FBBF24" }}>
+                            Position-swap check could not be completed.
+                          </span>
+                        </>
+                      ) : comp.position_swap_check.consistent ? (
                         <>
                           <CheckCircle2
                             size={16}

@@ -15,7 +15,7 @@
 [![TypeScript 5.0+](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose%20Ready-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 
-An end-to-end, enterprise-ready LLM evaluation platform powered by a fine-tuned **Qwen2.5-7B-Instruct** judge model deployed on **Hugging Face Spaces (ZeroGPU)**. The platform features an automated pairwise evaluation tournament engine with bidirectional position-swap bias mitigation, Bradley-Terry Elo rankings, real-time telemetry, stateless JWT authentication, Celery background workers, Prometheus observability, and an asynchronous SQLAlchemy 2.0 backend paired with a React 19 dashboard.
+An LLM evaluation platform powered by a fine-tuned **Qwen2.5-7B-Instruct** judge model deployed on **Hugging Face Spaces (ZeroGPU)**. The platform features pairwise evaluation, position-swap checks, win-rate rankings, JWT authentication, Celery background workers, Prometheus metrics, an asynchronous SQLAlchemy backend, and a React dashboard.
 
 ---
 
@@ -361,12 +361,14 @@ The backend is built with FastAPI adhering to clean, service-oriented architectu
 - **`POST /api/generate-compare`**: Mode 1 comparison. Concurrently dispatches requests to upstream model providers (OpenAI, Gemini, Anthropic, DeepSeek, Mistral, Ollama, OpenRouter, Grok), collects generated texts, and pipes them directly into pairwise judging.
 - **`GET /api/models`**: Lists available models with dynamic availability computation based on system or per-user configured API keys.
 - **`POST /api/sessions/{id}/save`**: Selectively persists prompts, answers, evaluations, and metrics to SQLite or PostgreSQL.
-- **`POST /api/auth/register` & `POST /api/auth/login`**: User authentication with PBKDF2 password hashing and HMAC tokens.
+- **`POST /api/auth/register` & `POST /api/auth/login`**: User authentication with bcrypt password hashing and JWTs.
 - **`GET /api/user/keys` & `POST /api/user/keys`**: Secure per-user API key storage encrypted with Fernet symmetric cryptography.
+- **`POST /api/evaluations`**: Queue an authenticated manual or generated evaluation through Celery. Generated runs use API keys saved to the user's account.
+- **`GET /api/evaluations/{task_id}`**: Check a queued evaluation and retrieve its report when complete. Task IDs are scoped to their owner.
 
 ### Concurrency & Thread-Safety
 
-Because the Hugging Face ZeroGPU Space processes requests sequentially, `PairwiseEvaluator` serializes judge executions via `asyncio.Lock()`. Synchronous network calls via `gradio_client` are offloaded to worker threads with `asyncio.to_thread` to ensure the FastAPI event loop remains unblocked.
+Because the Hugging Face ZeroGPU Space processes requests sequentially, `PairwiseEvaluator` serializes judge executions with a shared process lock and, in production, a renewable Redis lock shared across API workers. Synchronous calls via `gradio_client` run in worker threads so the FastAPI event loop remains responsive. The lock remains held until a timed-out thread actually exits.
 
 ---
 

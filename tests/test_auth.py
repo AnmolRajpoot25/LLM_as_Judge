@@ -7,6 +7,9 @@ from src.database.connection import init_db
 
 from src.providers.registry import model_registry
 from src.providers.mock_provider import MockProvider
+from src.api.dependencies import get_comparison_service
+from src.services.comparison_service import ComparisonService
+from src.judge.model_loader import MockJudgeEvaluator
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -17,7 +20,12 @@ def setup_db():
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    app.dependency_overrides[get_comparison_service] = lambda: ComparisonService(
+        judge=MockJudgeEvaluator()
+    )
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.pop(get_comparison_service, None)
 
 
 def test_auth_registration_and_validation(client):

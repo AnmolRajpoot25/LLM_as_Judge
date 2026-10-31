@@ -50,6 +50,17 @@ def test_e2e_live_mode2_manual_compare_4_answers():
 
 def test_e2e_live_selective_save_and_history():
     with httpx.Client(base_url=BASE_URL, timeout=30.0) as client:
+        import uuid
+
+        suffix = uuid.uuid4().hex[:8]
+        auth_res = client.post("/api/auth/register", json={
+            "username": f"live_{suffix}",
+            "email": f"live_{suffix}@example.test",
+            "password": "test-password-123",
+        })
+        assert auth_res.status_code == 200
+        headers = {"Authorization": f"Bearer {auth_res.json()['token']}"}
+
         # Run manual compare
         compare_payload = {
             "problem": "What is the time complexity of QuickSort average and worst case?",
@@ -73,12 +84,12 @@ def test_e2e_live_selective_save_and_history():
             },
             "session_data": report
         }
-        save_res = client.post(f"/api/sessions/{session_id}/save", json=save_payload)
+        save_res = client.post(f"/api/sessions/{session_id}/save", json=save_payload, headers=headers)
         assert save_res.status_code == 200
         assert save_res.json()["success"] is True
 
         # Retrieve saved session
-        get_res = client.get(f"/api/sessions/{session_id}")
+        get_res = client.get(f"/api/sessions/{session_id}", headers=headers)
         assert get_res.status_code == 200
         saved_data = get_res.json()["data"]
         assert saved_data["session_id"] == session_id
@@ -87,7 +98,7 @@ def test_e2e_live_selective_save_and_history():
         assert len(saved_data["pairwise_comparisons"]) == 1
 
         # Check list sessions includes it
-        list_res = client.get("/api/sessions")
+        list_res = client.get("/api/sessions", headers=headers)
         assert list_res.status_code == 200
         all_sessions = list_res.json()["data"]
         assert any(s["session_id"] == session_id for s in all_sessions)
