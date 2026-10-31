@@ -1,4 +1,5 @@
 import bcrypt
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
@@ -12,6 +13,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.jwt_expire_minutes
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify plain password against hashed password."""
     try:
+        if hashed_password.startswith("bcrypt-sha256$"):
+            digest = hashlib.sha256(plain_password.encode("utf-8")).digest()
+            bcrypt_hash = hashed_password.removeprefix("bcrypt-sha256$")
+            return bcrypt.checkpw(digest, bcrypt_hash.encode("utf-8"))
+        # Existing accounts used raw bcrypt input truncated at 72 bytes.
         return bcrypt.checkpw(
             plain_password.encode("utf-8")[:72],
             hashed_password.encode("utf-8")
@@ -21,10 +27,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
-    """Generate bcrypt password hash."""
-    pwd_bytes = password.encode("utf-8")[:72]
+    """Generate a bcrypt hash over a fixed-length SHA-256 password digest."""
+    pwd_bytes = hashlib.sha256(password.encode("utf-8")).digest()
     salt = bcrypt.gensalt()
-    return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
+    return f"bcrypt-sha256${bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')}"
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

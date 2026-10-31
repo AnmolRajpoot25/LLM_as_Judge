@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 import httpx
 from src.config.settings import settings
 from src.providers.base import BaseProvider, ProviderResponse, ProviderError, GenerationConfig
+from src.utils.url_safety import is_safe_ollama_url
 
 
 class OllamaProvider(BaseProvider):
@@ -23,6 +24,8 @@ class OllamaProvider(BaseProvider):
 
     async def check_health(self) -> bool:
         """Check if local Ollama daemon is reachable."""
+        if not is_safe_ollama_url(self.base_url):
+            return False
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
                 resp = await client.get(f"{self.base_url}/api/tags")
@@ -38,6 +41,19 @@ class OllamaProvider(BaseProvider):
         generation_config: Optional[GenerationConfig] = None
     ) -> ProviderResponse:
         start_time = time.perf_counter()
+
+        if not is_safe_ollama_url(self.base_url):
+            return ProviderResponse(
+                success=False,
+                model=model_name,
+                provider=self.provider_name,
+                latency_seconds=0.0,
+                error=ProviderError(
+                    type="UnsafeBaseUrlError",
+                    message="Ollama URL resolves to a restricted network address.",
+                    retryable=False,
+                ),
+            )
 
         cfg = generation_config or GenerationConfig()
         clean_model = model_name

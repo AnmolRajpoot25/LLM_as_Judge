@@ -1,12 +1,13 @@
 """Authentication API routes for user registration, login, and session validation."""
 
-import time
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from src.config.database import get_db
 from src.models import User
 from src.services.auth_jwt import (
@@ -60,7 +61,7 @@ class MeResponse(BaseModel):
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_200_OK)
 async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Register a new user account."""
-    clean_user = request.username.strip()
+    clean_user = request.username.strip().lower()
     clean_email = request.email.strip().lower()
 
     if len(clean_user) < 3:
@@ -91,7 +92,7 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
             detail="Username or email already registered."
         )
 
-    user_id = f"usr-{clean_user[:10]}-{int(time.time() * 1000) % 1000000:06d}"
+    user_id = f"usr-{uuid.uuid4().hex}"
     pwd_hash = get_password_hash(request.password)
 
     new_user = User(
@@ -101,7 +102,14 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
         password_hash=pwd_hash,
     )
     db.add(new_user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username or email already registered.",
+        ) from exc
     await db.refresh(new_user)
 
     expires_seconds = ACCESS_TOKEN_EXPIRE_MINUTES * 60
@@ -131,7 +139,8 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     result = await db.execute(
         select(User).where(
-            (User.username.ilike(query_val)) | (User.email == query_val.lower())
+            (func.lower(User.username) == query_val.lower())
+            | (func.lower(User.email) == query_val.lower())
         )
     )
     user = result.scalar_one_or_none()

@@ -2,6 +2,7 @@
 
 import uuid
 from typing import Dict, Any, List, Optional
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from src.database.models import (
     SessionRecord,
@@ -37,6 +38,8 @@ class SessionRepository:
 
         # 1. Upsert SessionRecord
         session_rec = self.db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
+        if session_rec and session_rec.user_id != user_id:
+            raise PermissionError("Session not found or access denied.")
         if not session_rec:
             session_rec = SessionRecord(
                 id=session_id,
@@ -45,8 +48,6 @@ class SessionRepository:
                 user_id=user_id
             )
             self.db.add(session_rec)
-        elif user_id and not session_rec.user_id:
-            session_rec.user_id = user_id
 
         session_rec.saved_options = save_options
         session_rec.rankings_summary = session_data.get("rankings", [])
@@ -70,6 +71,8 @@ class SessionRepository:
             else:
                 prompt_rec.content = inp.get("prompt", "")
                 prompt_rec.system_prompt = inp.get("system_prompt")
+        elif not opt_prompt:
+            self.db.query(PromptRecord).filter(PromptRecord.session_id == session_id).delete()
 
         # 3. Save Answers if requested
         if opt_answers and "answers" in session_data:
@@ -91,6 +94,10 @@ class SessionRepository:
                     error_message=str(ans.get("error")) if ans.get("error") else None
                 )
                 self.db.add(resp_rec)
+        elif not opt_answers:
+            self.db.query(ModelResponseRecord).filter(
+                ModelResponseRecord.session_id == session_id
+            ).delete()
 
         # 4. Save Comparisons and Evaluations if requested
         if opt_evaluations and "pairwise_comparisons" in session_data:
@@ -141,6 +148,16 @@ class SessionRepository:
                         position_swap_result=comp.get("position_swap_check")
                     )
                     self.db.add(eval_rec)
+        elif not opt_evaluations:
+            comparison_ids = select(PairwiseComparisonRecord.id).where(
+                PairwiseComparisonRecord.session_id == session_id
+            )
+            self.db.query(EvaluationResultRecord).filter(
+                EvaluationResultRecord.comparison_id.in_(comparison_ids)
+            ).delete(synchronize_session=False)
+            self.db.query(PairwiseComparisonRecord).filter(
+                PairwiseComparisonRecord.session_id == session_id
+            ).delete(synchronize_session=False)
 
         self.db.commit()
         return {
@@ -149,9 +166,13 @@ class SessionRepository:
             "saved_options": save_options
         }
 
-    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_session(self, session_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve full details of a saved session."""
-        session_rec = self.db.query(SessionRecord).filter(SessionRecord.id == session_id).first()
+        session_rec = (
+            self.db.query(SessionRecord)
+            .filter(SessionRecord.id == session_id, SessionRecord.user_id == user_id)
+            .first()
+        )
         if not session_rec:
             return None
 

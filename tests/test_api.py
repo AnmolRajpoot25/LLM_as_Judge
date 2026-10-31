@@ -4,6 +4,9 @@ from src.api.main import app
 from src.database.connection import init_db
 from src.providers.registry import model_registry
 from src.providers.mock_provider import MockProvider
+from src.api.dependencies import get_comparison_service
+from src.services.comparison_service import ComparisonService
+from src.judge.model_loader import MockJudgeEvaluator
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -16,7 +19,12 @@ def setup_db_and_providers():
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    app.dependency_overrides[get_comparison_service] = lambda: ComparisonService(
+        judge=MockJudgeEvaluator()
+    )
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.pop(get_comparison_service, None)
 
 
 def test_root_and_health(client):
@@ -133,6 +141,16 @@ def test_manual_compare_execution(client):
 
 
 def test_session_save_and_retrieve(client):
+    import uuid
+
+    auth = client.post("/api/auth/register", json={
+        "username": f"session_{uuid.uuid4().hex[:8]}",
+        "email": f"session_{uuid.uuid4().hex[:8]}@example.test",
+        "password": "test-password-123",
+    })
+    assert auth.status_code == 200
+    headers = {"Authorization": f"Bearer {auth.json()['token']}"}
+
     # Run a manual compare first
     r = client.post("/api/manual-compare", json={
         "problem": "Explain CAP theorem",
@@ -155,12 +173,12 @@ def test_session_save_and_retrieve(client):
             "raw_responses": False
         },
         "session_data": report
-    })
+    }, headers=headers)
     assert save_res.status_code == 200
     assert save_res.json()["success"] is True
 
     # Retrieve saved session
-    get_res = client.get(f"/api/sessions/{sess_id}")
+    get_res = client.get(f"/api/sessions/{sess_id}", headers=headers)
     assert get_res.status_code == 200
     retrieved = get_res.json()["data"]
     assert retrieved["session_id"] == sess_id
@@ -169,6 +187,6 @@ def test_session_save_and_retrieve(client):
     assert len(retrieved["pairwise_comparisons"]) == 1
 
     # List sessions
-    list_res = client.get("/api/sessions")
+    list_res = client.get("/api/sessions", headers=headers)
     assert list_res.status_code == 200
     assert any(s["session_id"] == sess_id for s in list_res.json()["data"])

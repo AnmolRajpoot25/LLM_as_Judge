@@ -41,9 +41,17 @@ def init_engine(url_str: str):
             last_error = exc
             continue
 
+    if settings.app_env.lower() == "production":
+        logger.critical(
+            "Failed to initialize the configured production database: %s",
+            last_error,
+        )
+        raise RuntimeError("Could not connect to the configured production database.") from last_error
+
     logger.error(
-        f"Failed to initialize database engine with URL '{url_str}': {last_error}. "
-        "Falling back to local SQLite database."
+        "Failed to initialize database engine with URL '%s': %s. Falling back to local SQLite database.",
+        url_str,
+        last_error,
     )
     fallback_url = "sqlite:///./llm_judge.db"
     eng = create_engine(

@@ -17,6 +17,7 @@ from src.api.routes.compare import router as compare_router
 from src.api.routes.sessions import router as sessions_router
 from src.api.routes.auth import router as auth_router
 from src.api.routes.user_keys import router as user_keys_router
+from src.api.routes.async_evaluations import router as async_evaluations_router
 
 # Prometheus metrics
 REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"])
@@ -36,10 +37,14 @@ async def lifespan(app: FastAPI):
         sync_init_db()
     except Exception as exc:
         logger.warning(f"Sync DB init warning: {exc}")
+        if settings.app_env.lower() == "production":
+            raise
     try:
         await init_db()
     except Exception as exc:
         logger.warning(f"Async DB init warning: {exc}")
+        if settings.app_env.lower() == "production":
+            raise
     logger.info("LLM-Judge platform initialized successfully.")
     yield
     logger.info("Shutting down LLM-Judge platform.")
@@ -56,27 +61,28 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-import os
-
 from starlette.requests import Request
 
-# CORS middleware for React / Vite frontend (supports Vercel, localhost, and custom domains)
-cors_env = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
-allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()] if cors_env else []
-default_origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+# CORS is restricted to explicitly configured origins. Local development
+# origins are added only outside production.
+allowed_origins = [
+    origin.strip()
+    for origin in settings.cors_allowed_origins.split(",")
+    if origin.strip()
 ]
-for origin in default_origins:
-    if origin not in allowed_origins:
-        allowed_origins.append(origin)
+if settings.app_env.lower() != "production":
+    for origin in (
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ):
+        if origin not in allowed_origins:
+            allowed_origins.append(origin)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -131,6 +137,7 @@ app.include_router(models_router)
 app.include_router(generate_router)
 app.include_router(compare_router)
 app.include_router(sessions_router)
+app.include_router(async_evaluations_router)
 
 
 @app.get("/")

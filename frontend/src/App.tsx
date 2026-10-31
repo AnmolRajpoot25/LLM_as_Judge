@@ -150,7 +150,7 @@ export const App: React.FC = () => {
     localStorage.removeItem("llm_judge_token");
     setAuthToken(null);
     setCurrentUser(null);
-    fetchSavedSessions(null).then((res) => setSavedSessions(res)).catch(() => {});
+    setSavedSessions([]);
     loadModels(null);
     setActiveMode("generate");
   };

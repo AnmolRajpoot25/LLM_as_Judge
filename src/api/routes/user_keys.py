@@ -1,9 +1,7 @@
 """API routes for managing per-user LLM provider API keys."""
 
-import ipaddress
 import uuid
 from typing import Dict, Optional, Any
-from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -11,6 +9,7 @@ from src.database.connection import get_db
 from src.database.models import UserApiKeyRecord
 from src.api.routes.auth import get_current_user_required
 from src.services.auth import encrypt_api_key, decrypt_api_key
+from src.utils.url_safety import is_safe_ollama_url
 from src.providers.openai_provider import OpenAIProvider
 from src.providers.anthropic_provider import AnthropicProvider
 from src.providers.gemini_provider import GeminiProvider
@@ -44,34 +43,6 @@ def mask_api_key(key: str) -> str:
     if len(key) <= 8:
         return "****"
     return f"{key[:4]}...{key[-4:]}"
-
-
-def is_safe_ollama_url(url_str: str) -> bool:
-    """Validate Ollama URL against SSRF attacks on cloud metadata and private link-local services."""
-    try:
-        parsed = urlparse(url_str.strip())
-        if parsed.scheme not in ("http", "https"):
-            return False
-        hostname = parsed.hostname
-        if not hostname:
-            return False
-        # Allow local development endpoints
-        if hostname in ("localhost", "127.0.0.1", "::1"):
-            return True
-        # Block cloud instance metadata IP literals
-        if hostname == "169.254.169.254":
-            return False
-        try:
-            ip = ipaddress.ip_address(hostname)
-            if ip.is_link_local or ip.is_multicast:
-                return False
-        except ValueError:
-            # Hostname is a domain name
-            if hostname.lower() in ("metadata.google.internal", "instance-data"):
-                return False
-        return True
-    except Exception:
-        return False
 
 
 @router.get("")
