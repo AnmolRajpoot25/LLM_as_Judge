@@ -9,6 +9,8 @@ from typing import List, Dict, Any, Optional
 from src.config.settings import settings
 from src.judge.evaluator import JudgeEvaluator
 
+_JUDGE_CONCURRENCY_LOCK = asyncio.Lock()
+
 
 class PairwiseEvaluator:
     """
@@ -34,7 +36,7 @@ class PairwiseEvaluator:
         self.judge = judge or JudgeEvaluator()
 
         # ZeroGPU should receive one inference request at a time.
-        self.lock = concurrency_lock or asyncio.Lock()
+        self.lock = concurrency_lock or _JUDGE_CONCURRENCY_LOCK
 
     def _get_judge(self):
         """Return the configured judge."""
@@ -67,86 +69,114 @@ class PairwiseEvaluator:
         # the model on ZeroGPU.
         # ----------------------------------------------------
 
-        async with self.lock:
+        await self.lock.acquire()
+        release_lock = True
+        judge_task = None
+        redis_client = None
+        redis_lock = None
+        renewal_task = None
 
+        async def cleanup_remote_lock():
+            if renewal_task is not None and renewal_task is not asyncio.current_task():
+                renewal_task.cancel()
+                try:
+                    await renewal_task
+                except asyncio.CancelledError:
+                    pass
+            if redis_lock is not None:
+                try:
+                    await redis_lock.release()
+                except Exception:
+                    pass
+            if redis_client is not None:
+                await redis_client.aclose()
+
+        def release_after_thread(_task):
+            async def cleanup():
+                await cleanup_remote_lock()
+                if self.lock.locked():
+                    self.lock.release()
+
+            asyncio.create_task(cleanup())
+
+        async def renew_redis_lease():
+            while judge_task is not None and not judge_task.done():
+                await asyncio.sleep(20)
+                if judge_task.done():
+                    break
+                await redis_lock.extend(60, replace_ttl=True)
+
+        try:
+            if settings.app_env.lower() == "production":
+                from redis.asyncio import Redis
+
+                redis_client = Redis.from_url(settings.redis_url)
+                redis_lock = redis_client.lock(
+                    "llm_judge:remote_judge",
+                    timeout=60,
+                )
+                await redis_lock.acquire(blocking=True)
+
+            judge_task = asyncio.create_task(asyncio.to_thread(
+                judge.evaluate,
+                problem,
+                answer_a,
+                answer_b
+            ))
+            if redis_lock is not None:
+                renewal_task = asyncio.create_task(renew_redis_lease())
             try:
-
                 result = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        judge.evaluate,
-                        problem,
-                        answer_a,
-                        answer_b
-                    ),
+                    asyncio.shield(judge_task),
                     timeout=settings.judge_timeout_seconds
                 )
-
-                latency = (
-                    time.perf_counter() - start_time
-                )
-
-                return {
-                    "success": True,
-                    "result": result["result"],
-                    "raw_response": result.get(
-                        "raw_response"
-                    ),
-                    "attempts": result.get(
-                        "attempts",
-                        1
-                    ),
-                    "latency_seconds": round(
-                        latency,
-                        3
-                    ),
-                    "error": None
-                }
-
             except asyncio.TimeoutError:
-
-                latency = (
-                    time.perf_counter() - start_time
-                )
-
+                release_lock = False
+                judge_task.add_done_callback(release_after_thread)
+                latency = time.perf_counter() - start_time
                 return {
                     "success": False,
                     "result": None,
                     "raw_response": None,
                     "attempts": 1,
-                    "latency_seconds": round(
-                        latency,
-                        3
-                    ),
+                    "latency_seconds": round(latency, 3),
                     "error": {
                         "type": "JudgeTimeoutError",
-                        "message": (
-                            f"Judge evaluation timed out "
-                            f"after "
-                            f"{settings.judge_timeout_seconds}s"
-                        )
-                    }
+                        "message": f"Judge evaluation timed out after {settings.judge_timeout_seconds}s",
+                    },
                 }
 
-            except Exception as exc:
-
-                latency = (
-                    time.perf_counter() - start_time
-                )
-
-                return {
-                    "success": False,
-                    "result": None,
-                    "raw_response": None,
-                    "attempts": 1,
-                    "latency_seconds": round(
-                        latency,
-                        3
-                    ),
-                    "error": {
-                        "type": type(exc).__name__,
-                        "message": str(exc)
-                    }
-                }
+            latency = time.perf_counter() - start_time
+            return {
+                "success": True,
+                "result": result["result"],
+                "raw_response": result.get("raw_response"),
+                "attempts": result.get("attempts", 1),
+                "latency_seconds": round(latency, 3),
+                "error": None,
+            }
+        except asyncio.CancelledError:
+            if judge_task is not None and not judge_task.done():
+                release_lock = False
+                judge_task.add_done_callback(release_after_thread)
+            raise
+        except Exception as exc:
+            latency = time.perf_counter() - start_time
+            return {
+                "success": False,
+                "result": None,
+                "raw_response": None,
+                "attempts": 1,
+                "latency_seconds": round(latency, 3),
+                "error": {
+                    "type": type(exc).__name__,
+                    "message": str(exc),
+                },
+            }
+        finally:
+            if release_lock:
+                await cleanup_remote_lock()
+                self.lock.release()
 
     # ========================================================
     # WINNER MAPPING
@@ -499,14 +529,19 @@ class PairwiseEvaluator:
             swap_checks
         )
 
+        evaluated_swap_checks = sum(
+            1 for check in swap_checks if "error" not in check
+        )
+        failed_swap_checks = executed_swap_checks - evaluated_swap_checks
+
         consistent_swap_checks = sum(
             1
             for check in swap_checks
-            if check.get("consistent") is True
+            if "error" not in check and check.get("consistent") is True
         )
 
         inconsistent_swap_checks = (
-            executed_swap_checks
+            evaluated_swap_checks
             - consistent_swap_checks
         )
 
@@ -535,6 +570,10 @@ class PairwiseEvaluator:
                 "executed": (
                     executed_swap_checks
                 ),
+
+                "evaluated": evaluated_swap_checks,
+
+                "failed": failed_swap_checks,
 
                 "consistent": (
                     consistent_swap_checks
