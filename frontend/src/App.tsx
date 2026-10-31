@@ -24,6 +24,7 @@ import { SaveDialog } from "./components/SaveDialog";
 import { HistoryView } from "./components/HistoryView";
 import { LoginPage } from "./components/LoginPage";
 import { ApiKeysPage } from "./components/ApiKeysPage";
+import { WelcomePage } from "./components/WelcomePage";
 import {
   Scale,
   Sparkles,
@@ -38,11 +39,13 @@ import {
 
 export const App: React.FC = () => {
   // Navigation
-  const [activeMode, setActiveMode] = useState<"generate" | "manual" | "keys" | "history" | "login">("generate");
-
   // Authentication State
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem("llm_judge_token"));
+  const [activeMode, setActiveMode] = useState<"welcome" | "generate" | "manual" | "keys" | "history" | "login">(
+    () => localStorage.getItem("llm_judge_token") ? "generate" : "welcome"
+  );
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(() => Boolean(localStorage.getItem("llm_judge_token")));
 
   // Models catalog
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
@@ -98,11 +101,15 @@ export const App: React.FC = () => {
       const profile = await apiGetMe(token);
       setCurrentUser(profile);
       loadModels(token);
+      setActiveMode("generate");
     } catch {
       // Token invalid or expired
       localStorage.removeItem("llm_judge_token");
       setAuthToken(null);
       setCurrentUser(null);
+      setActiveMode("welcome");
+    } finally {
+      setIsAuthChecking(false);
     }
   };
 
@@ -152,7 +159,7 @@ export const App: React.FC = () => {
     setCurrentUser(null);
     setSavedSessions([]);
     loadModels(null);
-    setActiveMode("generate");
+    setActiveMode("welcome");
   };
 
   const handleToggleModel = (id: string) => {
@@ -238,6 +245,32 @@ export const App: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  if (isAuthChecking) {
+    return (
+      <main className="welcome-shell welcome-auth-checking" aria-live="polite">
+        Checking your sign-in…
+      </main>
+    );
+  }
+
+  if (!authToken || !currentUser) {
+    return (
+      <main className="welcome-shell">
+        {activeMode === "login" ? (
+          <LoginPage
+            onLoginSuccess={handleLoginSuccess}
+            onCancel={() => setActiveMode("welcome")}
+          />
+        ) : (
+          <WelcomePage
+            onNext={() => setActiveMode("login")}
+            onSignIn={() => setActiveMode("login")}
+          />
+        )}
+      </main>
+    );
+  }
 
   return (
     <div className="app-container">
