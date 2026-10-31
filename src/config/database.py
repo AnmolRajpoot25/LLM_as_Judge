@@ -33,6 +33,8 @@ async def init_db() -> None:
         logger.info("Async database tables initialized successfully.")
     except Exception as exc:
         logger.warning(f"Async database initialization notice: {exc}")
+        if settings.app_env.lower() == "production":
+            raise RuntimeError("Could not initialize the production database schema.") from exc
 
 
 async def close_db() -> None:

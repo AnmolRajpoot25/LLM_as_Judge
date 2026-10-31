@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from src.database.connection import get_db
 from src.database.repository import SessionRepository
 from src.api.schemas.requests import SaveSessionRequest
-from src.api.routes.auth import get_current_user_optional
+from src.api.dependencies import get_current_user_required
 
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 async def save_session(
     session_id: str,
     request: SaveSessionRequest,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user_required),
     db: Session = Depends(get_db)
 ):
     """Save selected portions of an evaluation session."""
@@ -27,9 +27,14 @@ async def save_session(
             session_id=session_id,
             session_data=request.session_data,
             save_options=save_opts,
-            user_id=user.id if user else None
+            user_id=user.id
         )
         return {"success": True, "data": result}
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found."
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -40,12 +45,12 @@ async def save_session(
 @router.get("/{session_id}")
 async def get_session(
     session_id: str,
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user_required),
     db: Session = Depends(get_db)
 ):
     """Retrieve full details of a saved comparison session."""
     repo = SessionRepository(db)
-    session_data = repo.get_session(session_id)
+    session_data = repo.get_session(session_id, user_id=user.id)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -58,12 +63,11 @@ async def get_session(
 async def list_sessions(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    user=Depends(get_current_user_optional),
+    user=Depends(get_current_user_required),
     db: Session = Depends(get_db)
 ):
     """List summary history of saved comparison sessions. If logged in, filters to user's sessions."""
     repo = SessionRepository(db)
-    user_id = user.id if user else None
-    sessions = repo.list_sessions(limit=limit, offset=offset, user_id=user_id)
+    sessions = repo.list_sessions(limit=limit, offset=offset, user_id=user.id)
     return {"success": True, "data": sessions, "count": len(sessions)}
 

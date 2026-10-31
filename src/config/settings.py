@@ -1,6 +1,6 @@
 import urllib.parse
 from typing import Optional
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -88,6 +88,29 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self):
+        if self.app_env.lower() == "production":
+            if (
+                self.jwt_secret_key == "change-this-to-a-secure-random-secret-key-in-production"
+                or len(self.jwt_secret_key) < 32
+            ):
+                raise ValueError(
+                    "Production requires JWT_SECRET_KEY to be explicitly set to at least 32 characters."
+                )
+            if (
+                self.encryption_secret_key == "change-this-to-a-secure-key-for-encrypting-user-api-keys"
+                or len(self.encryption_secret_key) < 32
+            ):
+                raise ValueError(
+                    "Production requires ENCRYPTION_SECRET_KEY to be explicitly set to at least 32 characters."
+                )
+            if self.cors_allowed_origins == "http://localhost:5173,http://127.0.0.1:5173":
+                raise ValueError(
+                    "Production requires CORS_ALLOWED_ORIGINS to be set to the deployed frontend origin(s)."
+                )
+        return self
 
     app_env: str = Field(default="development", description="Application environment")
     log_level: str = Field(default="INFO", description="Logging level")

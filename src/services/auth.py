@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from cryptography.fernet import Fernet
 from src.database.models import UserRecord
+from src.config.settings import settings
 
 logger = logging.getLogger("llm_judge.auth")
 
@@ -23,7 +24,7 @@ TOKEN_EXPIRATION_SECONDS = 7 * 24 * 3600  # 7 days
 
 # Encryption cipher derivation for sensitive API keys at rest
 def _get_fernet() -> Fernet:
-    enc_seed = os.environ.get("ENCRYPTION_SECRET_KEY", AUTH_SECRET_KEY)
+    enc_seed = os.environ.get("ENCRYPTION_SECRET_KEY") or settings.encryption_secret_key
     key_32 = hashlib.sha256(enc_seed.encode("utf-8")).digest()
     return Fernet(base64.urlsafe_b64encode(key_32))
 
@@ -38,7 +39,7 @@ def encrypt_api_key(plain_key: str) -> str:
         return f"enc:{token}"
     except Exception as exc:
         logger.error("Failed to encrypt API key: %s", exc)
-        return plain_key
+        raise RuntimeError("API key encryption failed; refusing to store plaintext.") from exc
 
 
 def decrypt_api_key(stored_key: str) -> str:
@@ -50,8 +51,8 @@ def decrypt_api_key(stored_key: str) -> str:
             cipher = _get_fernet()
             return cipher.decrypt(stored_key[4:].encode("utf-8")).decode("utf-8")
         except Exception as exc:
-            logger.warning("Decryption failed; returning raw string: %s", exc)
-            return stored_key
+            logger.error("API key decryption failed: %s", exc)
+            raise ValueError("Stored API key could not be decrypted with the configured key.") from exc
     return stored_key
 
 

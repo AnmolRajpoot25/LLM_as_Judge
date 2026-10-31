@@ -1,7 +1,7 @@
 """Pydantic schemas for API request validation."""
 
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional, Dict, Any, Literal
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class GenerationConfigSchema(BaseModel):
@@ -43,7 +43,7 @@ class GenerateCompareRequest(BaseModel):
 
 class ManualAnswerItem(BaseModel):
     model_name: str = Field(..., description="Name or identifier of the candidate model")
-    answer: str = Field(..., description="Candidate answer text")
+    answer: str = Field(..., max_length=200_000, description="Candidate answer text")
 
     @field_validator("model_name")
     @classmethod
@@ -63,7 +63,7 @@ class ManualAnswerItem(BaseModel):
 
 
 class ManualCompareRequest(BaseModel):
-    problem: str = Field(..., description="Problem statement or question")
+    problem: str = Field(..., max_length=200_000, description="Problem statement or question")
     answers: List[ManualAnswerItem] = Field(..., description="List of 2 to 4 candidate answers")
     position_swap_check: Optional[bool] = Field(default=None, description="Run position swap consistency check")
 
@@ -99,3 +99,17 @@ class SaveOptionsSchema(BaseModel):
 class SaveSessionRequest(BaseModel):
     save_options: SaveOptionsSchema = Field(default_factory=SaveOptionsSchema)
     session_data: Dict[str, Any] = Field(..., description="Full session report data to persist")
+
+
+class AsyncEvaluationRequest(BaseModel):
+    mode: Literal["GENERATE_AND_COMPARE", "MANUAL_COMPARE"]
+    generate: Optional[GenerateCompareRequest] = None
+    manual: Optional[ManualCompareRequest] = None
+
+    @model_validator(mode="after")
+    def validate_mode_payload(self):
+        if self.mode == "GENERATE_AND_COMPARE" and (not self.generate or self.manual):
+            raise ValueError("Provide only the generate payload for GENERATE_AND_COMPARE mode.")
+        if self.mode == "MANUAL_COMPARE" and (not self.manual or self.generate):
+            raise ValueError("Provide only the manual payload for MANUAL_COMPARE mode.")
+        return self
