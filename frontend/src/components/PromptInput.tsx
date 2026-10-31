@@ -41,11 +41,11 @@ export const PromptInput: React.FC<PromptInputProps> = ({
     <div className="glass-card prompt-box">
       <div style={{ marginBottom: "16px" }}>
         <label className="form-label">
-          Problem / Prompt to Compare
+          What would you like the models to answer?
         </label>
         <textarea
           className="textarea-custom"
-          placeholder="e.g. Design a scalable URL shortener with high read throughput, or implement an O(log n) algorithm for median of two sorted arrays..."
+          placeholder="Ask a question, describe a task, or paste a prompt…"
           value={prompt}
           onChange={(e) => onChangePrompt(e.target.value)}
           rows={5}
@@ -71,7 +71,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           }}
         >
           {showSystemPrompt ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          {showSystemPrompt ? "Hide System Instructions" : "+ Add Optional System Prompt"}
+          {showSystemPrompt ? "Hide extra guidance" : "+ Add optional guidance"}
         </button>
 
         {showSystemPrompt && (
@@ -79,7 +79,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
             <textarea
               className="textarea-custom"
               style={{ minHeight: "80px", fontSize: "13px" }}
-              placeholder="System prompt context (e.g. You are a Staff Distributed Systems Engineer. Provide rigorous complexity analysis.)"
+              placeholder="For example: Keep the explanation friendly and use a simple example."
               value={systemPrompt}
               onChange={(e) => onChangeSystemPrompt(e.target.value)}
             />
@@ -106,7 +106,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           }}
         >
           <Sliders size={14} />
-          {showAdvanced ? "Hide Advanced Settings" : "Advanced Generation Parameters"}
+          {showAdvanced ? "Hide settings" : "Fine-tune the response"}
         </button>
 
         {showAdvanced && (
@@ -122,7 +122,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "6px" }}>
-                <span>Temperature</span>
+                <span>Creativity</span>
                 <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-cyan)" }}>{temperature}</span>
               </div>
               <input
@@ -138,7 +138,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
 
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "6px" }}>
-                <span>Max Output Tokens</span>
+                <span>Answer length</span>
                 <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent-cyan)" }}>{maxTokens}</span>
               </div>
               <input
@@ -173,11 +173,11 @@ export const PromptInput: React.FC<PromptInputProps> = ({
               onChange={(e) => onChangePositionSwapCheck(e.target.checked)}
               style={{ accentColor: "var(--accent-primary)", width: "16px", height: "16px" }}
             />
-            <span>Mitigate Position Bias (Evaluate A vs B, then B vs A)</span>
+            <span>Check whether answer order changes the result</span>
           </label>
         ) : (
           <span style={{ fontSize: "13px", color: "var(--text-dim)" }}>
-            Direct Generation Mode (No judge evaluation required)
+            One model is selected, so it will answer without a comparison.
           </span>
         )}
 
@@ -189,12 +189,12 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           {isLoading ? (
             <>
               <RefreshCw className="animate-spin" size={18} />
-              {selectedCount === 1 ? "Generating Answer..." : "Generating & Evaluating..."}
+              {selectedCount === 1 ? "Putting an answer together…" : "Comparing the answers…"}
             </>
           ) : (
             <>
               <Sparkles size={18} />
-              {selectedCount === 1 ? "Generate Answer" : "Run Generation & Comparison"}
+              {selectedCount === 1 ? "Get an answer" : "Get answers & compare"}
             </>
           )}
         </button>

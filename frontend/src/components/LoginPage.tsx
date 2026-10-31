@@ -2,13 +2,16 @@ import React, { useState } from "react";
 import { apiLogin, apiRegister } from "../services/api";
 import type { UserProfile } from "../types/auth";
 import { Lock, Mail, User, Eye, EyeOff, LogIn, UserPlus, Sparkles, RefreshCw, AlertCircle } from "lucide-react";
+import { ThemeToggle, type AppTheme } from "./ThemeToggle";
 
 interface LoginPageProps {
   onLoginSuccess: (user: UserProfile, token: string) => void;
   onCancel?: () => void;
+  theme: AppTheme;
+  onToggleTheme: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel, theme, onToggleTheme }) => {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -65,7 +68,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
   };
 
   return (
-    <div style={{ maxWidth: "460px", margin: "40px auto" }} className="glass-card">
+    <div className="login-page-shell">
+      <div className="login-theme-control">
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+      </div>
+      <div style={{ maxWidth: "460px", margin: "0 auto" }} className="glass-card">
       <div style={{ padding: "32px" }}>
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: "24px" }}>
@@ -276,6 +283,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
             </button>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

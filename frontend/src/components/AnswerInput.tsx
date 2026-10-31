@@ -55,11 +55,11 @@ export const AnswerInput: React.FC<AnswerInputProps> = ({
     <div className="glass-card prompt-box">
       <div style={{ marginBottom: "24px" }}>
         <label className="form-label">
-          Problem / Ground Truth Context
+          What question were the answers responding to?
         </label>
         <textarea
           className="textarea-custom"
-          placeholder="Enter the problem statement, prompt, or question that both candidate answers address..."
+          placeholder="Add the question or task you gave the models…"
           value={problem}
           onChange={(e) => onChangeProblem(e.target.value)}
           rows={4}
@@ -68,7 +68,7 @@ export const AnswerInput: React.FC<AnswerInputProps> = ({
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
         <h3 style={{ fontSize: "16px", fontWeight: 700 }}>
-          Candidate Model Answers ({answers.length} / 4)
+          Answers to compare ({answers.length} / 4)
         </h3>
         {answers.length < 4 && (
           <button
@@ -78,7 +78,7 @@ export const AnswerInput: React.FC<AnswerInputProps> = ({
             style={{ padding: "6px 14px", fontSize: "12px" }}
           >
             <Plus size={14} />
-            Add Candidate Answer ({answers.length + 1}/4)
+            Add another answer ({answers.length + 1}/4)
           </button>
         )}
       </div>
@@ -105,7 +105,7 @@ export const AnswerInput: React.FC<AnswerInputProps> = ({
                 type="text"
                 className="input-custom"
                 style={{ maxWidth: "240px", fontWeight: 600 }}
-                placeholder="Model Name (e.g. GPT-4o, Claude)"
+                placeholder="Name this model (e.g. GPT-4o)"
                 value={ans.model_name}
                 onChange={(e) => handleUpdate(idx, "model_name", e.target.value)}
               />
@@ -123,7 +123,7 @@ export const AnswerInput: React.FC<AnswerInputProps> = ({
                   alignItems: "center",
                   padding: "4px"
                 }}
-                title="Remove Candidate"
+                title="Remove this answer"
               >
                 <Trash2 size={16} />
               </button>
@@ -132,7 +132,7 @@ export const AnswerInput: React.FC<AnswerInputProps> = ({
 
           <textarea
             className="textarea-custom"
-            placeholder={`Enter or paste full answer from ${ans.model_name || `Model ${idx + 1}`}...`}
+            placeholder={`Paste ${ans.model_name || `answer ${idx + 1}`}’s response here…`}
             value={ans.answer}
             onChange={(e) => handleUpdate(idx, "answer", e.target.value)}
             rows={5}
@@ -157,7 +157,7 @@ export const AnswerInput: React.FC<AnswerInputProps> = ({
             onChange={(e) => onChangePositionSwapCheck(e.target.checked)}
             style={{ accentColor: "var(--accent-primary)", width: "16px", height: "16px" }}
           />
-          <span>Mitigate Position Bias (Swap order & verify consistency)</span>
+          <span>Check whether answer order changes the result</span>
         </label>
 
         <button
@@ -168,12 +168,12 @@ export const AnswerInput: React.FC<AnswerInputProps> = ({
           {isLoading ? (
             <>
               <RefreshCw className="animate-spin" size={18} />
-              Evaluating Answers...
+              Taking a closer look…
             </>
           ) : (
             <>
               <Scale size={18} />
-              Run Pairwise Judge Evaluation
+              Compare these answers
             </>
           )}
         </button>

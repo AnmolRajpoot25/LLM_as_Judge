@@ -118,7 +118,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             }}
           >
             <h2 style={{ fontSize: "24px", fontWeight: 800 }}>
-              Evaluation Results
+              Here’s how it went
             </h2>
 
             <span
@@ -128,19 +128,25 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 padding: "3px 10px",
                 borderRadius: "12px",
                 background:
-                  report.status === "COMPLETED"
+                  report.status === "COMPLETED" || report.status === "COMPLETED_WITH_WARNINGS"
                     ? "rgba(16, 185, 129, 0.15)"
                     : "rgba(245, 158, 11, 0.15)",
                 color:
-                  report.status === "COMPLETED" ? "#34D399" : "#FBBF24",
+                  report.status === "COMPLETED" || report.status === "COMPLETED_WITH_WARNINGS" ? "#34D399" : "#FBBF24",
                 border: `1px solid ${
-                  report.status === "COMPLETED"
+                  report.status === "COMPLETED" || report.status === "COMPLETED_WITH_WARNINGS"
                     ? "rgba(16, 185, 129, 0.3)"
                     : "rgba(245, 158, 11, 0.3)"
                 }`,
               }}
             >
-              {report.status}
+              {report.status === "COMPLETED"
+                ? "All done"
+                : report.status === "COMPLETED_WITH_WARNINGS"
+                  ? "Done, with a few hiccups"
+                  : report.status === "INSUFFICIENT_SUCCESSFUL_MODELS"
+                    ? "Not enough answers to compare"
+                    : "This run hit a snag"}
             </span>
           </div>
 
@@ -153,7 +159,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             }}
           >
             <span className="session-badge">
-              Session: {report.session_id}
+              Saved run: {report.session_id}
             </span>
 
             <span
@@ -162,11 +168,11 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 color: "var(--text-dim)",
               }}
             >
-              Mode:{" "}
+              Run type:{" "}
               {report.mode === "GENERATE_AND_COMPARE"
                 ? "Generate & Compare"
                 : report.mode === "SINGLE_GENERATION"
-                  ? "Single Model Generation"
+                  ? "One model answered"
                   : "Manual Compare"}
             </span>
           </div>
@@ -190,7 +196,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             }}
           >
             <Clock size={13} />
-            Total Latency
+            Time taken
           </div>
 
           <div className="metric-val">
@@ -208,7 +214,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             }}
           >
             <Zap size={13} />
-            Pairwise Comparisons
+            Head-to-head checks
           </div>
 
           <div className="metric-val">
@@ -227,7 +233,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               }}
             >
               <DollarSign size={13} />
-              Est. API Cost
+              Estimated cost
             </div>
 
             <div
@@ -252,7 +258,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             }}
           >
             <Award size={13} />
-            Top Ranked Model
+            Top answer
           </div>
 
           <div

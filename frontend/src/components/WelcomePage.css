@@ -38,6 +38,12 @@
   min-height: 46px;
 }
 
+.welcome-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .welcome-brand {
   display: inline-flex;
   align-items: center;
@@ -467,4 +473,43 @@
 
 @media (prefers-reduced-motion: reduce) {
   .welcome-next-button { transition: none; }
+}
+
+:root[data-theme="light"] .welcome-shell {
+  --welcome-muted: #566178;
+  --welcome-dim: #727c92;
+  background:
+    radial-gradient(ellipse at 82% 44%, rgba(113, 95, 245, 0.12), transparent 38%),
+    radial-gradient(ellipse at 7% 92%, rgba(33, 143, 161, 0.08), transparent 38%),
+    #f7f7fc;
+}
+
+:root[data-theme="light"] .welcome-shell::before {
+  opacity: 0.16;
+  background-image: linear-gradient(rgba(35, 42, 69, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(35, 42, 69, 0.07) 1px, transparent 1px);
+}
+
+:root[data-theme="light"] .welcome-brand {
+  color: #20253a;
+}
+
+:root[data-theme="light"] .welcome-header-note {
+  color: #5d667c;
+}
+
+:root[data-theme="light"] .welcome-copy h1 {
+  color: #20253a;
+}
+
+:root[data-theme="light"] .welcome-step-text strong {
+  color: #2d344a;
+}
+
+:root[data-theme="light"] .welcome-footer {
+  color: #727c92;
+}
+
+@media (max-width: 760px) {
+  .welcome-header-actions { gap: 8px; }
 }

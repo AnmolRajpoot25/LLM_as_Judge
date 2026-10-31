@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type {
   ModelInfo,
   EvaluationReport,
@@ -25,6 +25,8 @@ import { HistoryView } from "./components/HistoryView";
 import { LoginPage } from "./components/LoginPage";
 import { ApiKeysPage } from "./components/ApiKeysPage";
 import { WelcomePage } from "./components/WelcomePage";
+import { ThemeToggle } from "./components/ThemeToggle";
+import type { AppTheme } from "./components/ThemeToggle";
 import {
   Scale,
   Sparkles,
@@ -32,9 +34,10 @@ import {
   History,
   AlertCircle,
   Key,
-  User,
   LogOut,
   LogIn,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 
 export const App: React.FC = () => {
@@ -46,6 +49,11 @@ export const App: React.FC = () => {
     () => localStorage.getItem("llm_judge_token") ? "generate" : "welcome"
   );
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(() => Boolean(localStorage.getItem("llm_judge_token")));
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const [theme, setTheme] = useState<AppTheme>(() =>
+    localStorage.getItem("llm_judge_theme") === "light" ? "light" : "dark"
+  );
 
   // Models catalog
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
@@ -53,7 +61,7 @@ export const App: React.FC = () => {
 
   // Mode 1 State: Generate & Compare
   const [prompt, setPrompt] = useState<string>(
-    "Design a distributed URL shortener system (like bit.ly) supporting 100M new URLs created per month and 10B clicks per month. Provide architecture, data model, and API endpoints."
+    "Explain how rainbows form in a way a curious 10-year-old would enjoy."
   );
   const [systemPrompt, setSystemPrompt] = useState<string>("");
   const [temperature, setTemperature] = useState<number>(0.7);
@@ -62,16 +70,16 @@ export const App: React.FC = () => {
 
   // Mode 2 State: Manual Compare
   const [manualProblem, setManualProblem] = useState<string>(
-    "Explain the difference between optimistic and pessimistic locking in database transaction management."
+    "How would you explain a black hole to someone curious about space?"
   );
   const [manualAnswers, setManualAnswers] = useState<ManualAnswer[]>([
     {
       model_name: "GPT-4.1",
-      answer: "Optimistic locking assumes conflict is rare and validates on commit using version/timestamp columns without taking database locks. Pessimistic locking acquires exclusive locks upon reading (SELECT ... FOR UPDATE) preventing concurrent access.",
+      answer: "A black hole is a place in space where gravity is so strong that nothing—not even light—can escape once it passes the event horizon.",
     },
     {
       model_name: "Claude Sonnet",
-      answer: "Optimistic locking delays validation until write time via version checks (good for high read, low collision). Pessimistic locking locks records immediately to avoid collision altogether (good for high write contention).",
+      answer: "A black hole is an empty tunnel through space that sucks up everything around it.",
     },
   ]);
   const [positionSwapMan, setPositionSwapMan] = useState<boolean>(false);
@@ -89,6 +97,11 @@ export const App: React.FC = () => {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState<boolean>(false);
 
   // Initial Load
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("llm_judge_theme", theme);
+  }, [theme]);
+
   useEffect(() => {
     loadModels();
     if (authToken) {
@@ -154,6 +167,7 @@ export const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    setIsProfileMenuOpen(false);
     localStorage.removeItem("llm_judge_token");
     setAuthToken(null);
     setCurrentUser(null);
@@ -162,13 +176,33 @@ export const App: React.FC = () => {
     setActiveMode("welcome");
   };
 
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsProfileMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isProfileMenuOpen]);
+
   const handleToggleModel = (id: string) => {
     if (selectedModelIds.includes(id)) {
       if (selectedModelIds.length > 1) {
         setSelectedModelIds(selectedModelIds.filter((m) => m !== id));
         setErrorMessage(null);
       } else {
-        setErrorMessage("Please keep at least 1 model selected.");
+        setErrorMessage("Choose at least one model to continue.");
       }
     } else {
       if (selectedModelIds.length < 4) {
@@ -261,11 +295,15 @@ export const App: React.FC = () => {
           <LoginPage
             onLoginSuccess={handleLoginSuccess}
             onCancel={() => setActiveMode("welcome")}
+            theme={theme}
+            onToggleTheme={() => setTheme((current) => current === "dark" ? "light" : "dark")}
           />
         ) : (
           <WelcomePage
             onNext={() => setActiveMode("login")}
             onSignIn={() => setActiveMode("login")}
+            theme={theme}
+            onToggleTheme={() => setTheme((current) => current === "dark" ? "light" : "dark")}
           />
         )}
       </main>
@@ -286,61 +324,17 @@ export const App: React.FC = () => {
               <span className="brand-badge">Qwen-Powered</span>
             </div>
             <p style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "2px" }}>
-              Production Multi-Model LLM Comparison & Pairwise Evaluation Platform
+              Compare AI answers and choose with confidence.
             </p>
           </div>
         </div>
 
-        {/* User Status Chip & Navigation */}
+        {/* Navigation and account actions */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          {currentUser ? (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "var(--bg-secondary)",
-              padding: "6px 12px",
-              borderRadius: "20px",
-              border: "1px solid var(--border-subtle)",
-              fontSize: "13px"
-            }}>
-              <span style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                background: "var(--accent-emerald)",
-                display: "inline-block"
-              }} />
-              <User size={14} color="var(--text-dim)" />
-              <span style={{ fontWeight: 600, color: "var(--text-main)" }}>@{currentUser.username}</span>
-              <button
-                type="button"
-                onClick={handleLogout}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--text-dim)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "2px",
-                  marginLeft: "4px"
-                }}
-                title="Sign Out"
-              >
-                <LogOut size={13} />
-              </button>
-            </div>
-          ) : (
-            <button
-              className="btn-secondary"
-              onClick={() => setActiveMode("login")}
-              style={{ padding: "6px 14px", fontSize: "13px" }}
-            >
-              <LogIn size={14} color="var(--accent-primary)" />
-              Sign In / Register
-            </button>
-          )}
+          <ThemeToggle
+            theme={theme}
+            onToggle={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+          />
 
           {/* Navigation Tabs */}
           <nav className="nav-tabs">
@@ -367,29 +361,93 @@ export const App: React.FC = () => {
               Compare Existing Answers
             </button>
 
-            <button
-              className={`nav-tab-btn ${activeMode === "keys" ? "active" : ""}`}
-              onClick={() => {
-                setActiveMode("keys");
-                setErrorMessage(null);
-              }}
-            >
-              <Key size={16} />
-              API Keys
-            </button>
-
-            <button
-              className={`nav-tab-btn ${activeMode === "history" ? "active" : ""}`}
-              onClick={() => {
-                setActiveMode("history");
-                loadHistory();
-                setErrorMessage(null);
-              }}
-            >
-              <History size={16} />
-              History
-            </button>
           </nav>
+
+          {currentUser ? (
+            <div className="profile-menu-wrap" ref={profileMenuRef}>
+              <button
+                type="button"
+                className="profile-button"
+                aria-haspopup="menu"
+                aria-expanded={isProfileMenuOpen}
+                onClick={() => setIsProfileMenuOpen((open) => !open)}
+              >
+                <span className="profile-avatar" aria-hidden="true">
+                  {currentUser.username.charAt(0).toUpperCase()}
+                </span>
+                <span className="profile-button-name">@{currentUser.username}</span>
+                <ChevronDown size={15} />
+              </button>
+              {isProfileMenuOpen && (
+                <div className="profile-menu" role="menu" aria-label="Account menu">
+                  <div className="profile-menu-heading">
+                    <span className="profile-avatar profile-avatar-large" aria-hidden="true">
+                      {currentUser.username.charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <div className="profile-menu-title">You’re signed in</div>
+                      <div className="profile-menu-username">@{currentUser.username}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="profile-menu-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setActiveMode("keys");
+                      setErrorMessage(null);
+                      setIsProfileMenuOpen(false);
+                    }}
+                  >
+                    <Key size={16} />
+                    API Keys
+                  </button>
+                  <button
+                    type="button"
+                    className="profile-menu-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setActiveMode("history");
+                      loadHistory();
+                      setErrorMessage(null);
+                      setIsProfileMenuOpen(false);
+                    }}
+                  >
+                    <History size={16} />
+                    History
+                  </button>
+                  <div className="profile-menu-divider" />
+                  <button
+                    type="button"
+                    className="profile-menu-item"
+                    role="menuitem"
+                    onClick={() => setIsProfileMenuOpen(false)}
+                  >
+                    <Check size={16} />
+                    Stay signed in
+                  </button>
+                  <button
+                    type="button"
+                    className="profile-menu-item profile-menu-logout"
+                    role="menuitem"
+                    onClick={handleLogout}
+                  >
+                    <LogOut size={16} />
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              className="btn-secondary"
+              onClick={() => setActiveMode("login")}
+              style={{ padding: "6px 14px", fontSize: "13px" }}
+            >
+              <LogIn size={14} color="var(--accent-primary)" />
+              Sign in or create an account
+            </button>
+          )}
         </div>
       </header>
 
@@ -417,9 +475,9 @@ export const App: React.FC = () => {
         <div>
           <div className="glass-card mode-banner">
             <div className="mode-info">
-              <h2>Mode 1: Generate & Compare (Single or Multi-Model)</h2>
+              <h2>Compare answers from different models</h2>
               <p>
-                Select 1 model for direct single generation, or 2 to 4 models for simultaneous generation and pairwise Qwen judge evaluations.
+                Try one model on its own or compare up to four answers side by side with the Qwen judge.
                 {currentUser ? " Using your configured personal API keys." : " Sign in to use your personal API keys."}
               </p>
             </div>
@@ -455,10 +513,9 @@ export const App: React.FC = () => {
         <div>
           <div className="glass-card mode-banner">
             <div className="mode-info">
-              <h2>Mode 2: Compare Existing Answers</h2>
+              <h2>Compare answers you already have</h2>
               <p>
-                Provide between 2 and 4 candidate answers manually. The platform bypasses API generation,
-                invokes pairwise Qwen evaluation, and computes rigorous win rates and criteria metrics.
+                Add a question and at least two responses. The Qwen judge compares them and helps you see which answer fits best.
               </p>
             </div>
           </div>
@@ -505,6 +562,8 @@ export const App: React.FC = () => {
         <LoginPage
           onLoginSuccess={handleLoginSuccess}
           onCancel={() => setActiveMode("generate")}
+          theme={theme}
+          onToggleTheme={() => setTheme((current) => current === "dark" ? "light" : "dark")}
         />
       )}
 

@@ -51,7 +51,7 @@ export const SaveDialog: React.FC<SaveDialogProps> = ({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Bookmark size={20} color="var(--accent-primary)" />
-            <h3 style={{ fontSize: "18px", fontWeight: 700 }}>Selective Session Persistence</h3>
+            <h3 style={{ fontSize: "18px", fontWeight: 700 }}>Choose what to save</h3>
           </div>
           <button
             onClick={onClose}
@@ -62,7 +62,7 @@ export const SaveDialog: React.FC<SaveDialogProps> = ({
         </div>
 
         <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "20px" }}>
-          Choose which evaluation components you wish to permanently save to SQLite database.
+          Keep the details you’ll want to revisit later. You can choose what goes into this saved session.
         </p>
 
         <div style={{ marginBottom: "24px" }}>
@@ -73,8 +73,8 @@ export const SaveDialog: React.FC<SaveDialogProps> = ({
               onChange={() => {}}
             />
             <div>
-              <div style={{ fontSize: "14px", fontWeight: 600 }}>Original Prompt / Problem</div>
-              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>Include user prompt and system instruction context</div>
+              <div style={{ fontSize: "14px", fontWeight: 600 }}>Your question and guidance</div>
+              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>The prompt and any extra instructions you added</div>
             </div>
           </label>
 
@@ -85,8 +85,8 @@ export const SaveDialog: React.FC<SaveDialogProps> = ({
               onChange={() => {}}
             />
             <div>
-              <div style={{ fontSize: "14px", fontWeight: 600 }}>Selected Model Answers</div>
-              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>Full text response from each evaluated candidate model</div>
+              <div style={{ fontSize: "14px", fontWeight: 600 }}>Model answers</div>
+              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>The full responses from each model</div>
             </div>
           </label>
 
@@ -97,8 +97,8 @@ export const SaveDialog: React.FC<SaveDialogProps> = ({
               onChange={() => {}}
             />
             <div>
-              <div style={{ fontSize: "14px", fontWeight: 600 }}>Pairwise Evaluations & Scores</div>
-              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>Qwen judge criterion breakdown, feedback, and confidence</div>
+              <div style={{ fontSize: "14px", fontWeight: 600 }}>Comparison and scores</div>
+              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>How the judge scored each answer, with its feedback and confidence</div>
             </div>
           </label>
 
@@ -109,8 +109,8 @@ export const SaveDialog: React.FC<SaveDialogProps> = ({
               onChange={() => {}}
             />
             <div>
-              <div style={{ fontSize: "14px", fontWeight: 600 }}>Cost & Latency Telemetry</div>
-              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>Token counts, estimated API fees, and wall-clock latencies</div>
+              <div style={{ fontSize: "14px", fontWeight: 600 }}>Usage and timing details</div>
+              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>Token counts, estimated cost, and how long each response took</div>
             </div>
           </label>
 
@@ -121,8 +121,8 @@ export const SaveDialog: React.FC<SaveDialogProps> = ({
               onChange={() => {}}
             />
             <div>
-              <div style={{ fontSize: "14px", fontWeight: 600 }}>Raw Judge Responses</div>
-              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>Raw unparsed JSON string outputs from Qwen judge</div>
+              <div style={{ fontSize: "14px", fontWeight: 600 }}>Original judge data</div>
+              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>The judge’s full response, including its structured data</div>
             </div>
           </label>
         </div>
@@ -139,17 +139,17 @@ export const SaveDialog: React.FC<SaveDialogProps> = ({
             {isSaving ? (
               <>
                 <RefreshCw className="animate-spin" size={16} />
-                Saving...
+                Saving your session…
               </>
             ) : savedSuccess ? (
               <>
                 <Check size={16} color="#34D399" />
-                Saved to Database!
+                Session saved!
               </>
             ) : (
               <>
                 <Bookmark size={16} />
-                Confirm & Save
+                Save session
               </>
             )}
           </button>

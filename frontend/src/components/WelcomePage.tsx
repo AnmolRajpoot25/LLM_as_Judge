@@ -1,14 +1,17 @@
 import React from "react";
 import { ArrowRight, Check, Scale, Sparkles } from "lucide-react";
+import { ThemeToggle, type AppTheme } from "./ThemeToggle";
 import heroImage from "../assets/llm-judge-welcome.png";
 import "./WelcomePage.css";
 
 interface WelcomePageProps {
   onNext: () => void;
   onSignIn: () => void;
+  theme: AppTheme;
+  onToggleTheme: () => void;
 }
 
-export const WelcomePage: React.FC<WelcomePageProps> = ({ onNext, onSignIn }) => (
+export const WelcomePage: React.FC<WelcomePageProps> = ({ onNext, onSignIn, theme, onToggleTheme }) => (
   <main className="welcome-shell">
     <header className="welcome-header">
       <a className="welcome-brand" href="#welcome" aria-label="LLM-Judge home">
@@ -16,7 +19,10 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onNext, onSignIn }) =>
         <span>LLM-Judge</span>
         <span className="welcome-brand-badge">Qwen powered</span>
       </a>
-      <span className="welcome-header-note"><Sparkles size={15} aria-hidden="true" /> Better choices start with a comparison</span>
+      <div className="welcome-header-actions">
+        <span className="welcome-header-note"><Sparkles size={15} aria-hidden="true" /> Better choices start with a comparison</span>
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+      </div>
     </header>
 
     <section className="welcome-layout" id="welcome">

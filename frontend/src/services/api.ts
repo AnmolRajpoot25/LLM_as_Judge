@@ -17,7 +17,7 @@ import type {
 
 const configuredBase = (
   (import.meta as any).env?.VITE_API_BASE_URL ||
-  "http://localhost:8000/api"
+  ((import.meta as any).env?.DEV ? "/api" : "http://localhost:8000/api")
 )
   .trim()
   .replace(/\/+$/, "");
