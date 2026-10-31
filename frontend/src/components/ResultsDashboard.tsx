@@ -485,7 +485,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 color: "var(--text-muted)",
               }}
             >
-              No pairwise comparisons for this run.
+              This run didn’t include any pairwise comparisons.
             </div>
           ) : (
             report.pairwise_comparisons.map((comp, idx) => {
@@ -988,7 +988,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                     color: "#FBBF24",
                   }}
                 >
-                  Generation failed:
+                  We couldn’t generate an answer this time.
                   <br />
                   {ans.error?.message ||
                     "Unknown generation error."}

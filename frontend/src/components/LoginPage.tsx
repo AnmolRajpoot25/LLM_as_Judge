@@ -25,13 +25,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
     try {
       if (tab === "login") {
         if (!username.trim() || !password) {
-          throw new Error("Username/email and password are required.");
+          throw new Error("Add your username or email and password to sign in.");
         }
         const res = await apiLogin(username.trim(), password);
         onLoginSuccess(res.user, res.token);
       } else {
         if (!username.trim() || !email.trim() || !password) {
-          throw new Error("All fields are required.");
+          throw new Error("Please fill in your username, email, and password to create an account.");
         }
         const res = await apiRegister(username.trim(), email.trim(), password);
         onLoginSuccess(res.user, res.token);
@@ -83,12 +83,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
             <Lock size={22} color="#FFFFFF" />
           </div>
           <h2 style={{ fontSize: "22px", fontWeight: 800 }}>
-            {tab === "login" ? "Sign In to LLM-Judge" : "Create Evaluator Account"}
+            {tab === "login" ? "Welcome back" : "Create your account"}
           </h2>
           <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>
             {tab === "login"
-              ? "Access your saved evaluations and personal LLM provider API keys."
-              : "Register to configure your personal OpenAI, Anthropic, Gemini, & DeepSeek keys."}
+              ? "Your saved comparisons and model settings will be right here."
+              : "Save your comparisons and connect the model providers you use."}
           </p>
         </div>
 
@@ -161,14 +161,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: "16px" }}>
             <label className="form-label" style={{ fontSize: "13px" }}>
-              {tab === "login" ? "Username or Email" : "Username"}
+              {tab === "login" ? "Your username or email" : "Choose a username"}
             </label>
             <div style={{ position: "relative" }}>
               <input
                 type="text"
                 className="input-custom"
                 style={{ paddingLeft: "36px" }}
-                placeholder={tab === "login" ? "Username or your@email.com" : "Choose username"}
+                placeholder={tab === "login" ? "Name or you@example.com" : "A name you’ll remember"}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -179,13 +179,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
 
           {tab === "register" && (
             <div style={{ marginBottom: "16px" }}>
-              <label className="form-label" style={{ fontSize: "13px" }}>Email Address</label>
+              <label className="form-label" style={{ fontSize: "13px" }}>Your email address</label>
               <div style={{ position: "relative" }}>
                 <input
                   type="email"
                   className="input-custom"
                   style={{ paddingLeft: "36px" }}
-                  placeholder="name@company.com"
+                placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -196,7 +196,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
           )}
 
           <div style={{ marginBottom: "24px" }}>
-            <label className="form-label" style={{ fontSize: "13px" }}>Password</label>
+            <label className="form-label" style={{ fontSize: "13px" }}>Your password</label>
             <div style={{ position: "relative" }}>
               <input
                 type={showPassword ? "text" : "password"}
@@ -235,17 +235,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
             {isLoading ? (
               <>
                 <RefreshCw className="animate-spin" size={16} />
-                Processing...
+                {tab === "login" ? "Signing you in…" : "Creating your account…"}
               </>
             ) : tab === "login" ? (
               <>
                 <LogIn size={16} />
-                Sign In
+                Sign in
               </>
             ) : (
               <>
                 <UserPlus size={16} />
-                Register Account
+                Create account
               </>
             )}
           </button>
@@ -261,7 +261,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
             disabled={isLoading}
           >
             <Sparkles size={14} color="var(--accent-amber)" />
-            Quick Demo Login (1-Click)
+            Try the demo account
           </button>
         </div>
 
@@ -272,7 +272,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onCancel }
               onClick={onCancel}
               style={{ background: "transparent", border: "none", color: "var(--text-dim)", fontSize: "12px", cursor: "pointer" }}
             >
-              Cancel and return
+              Back to welcome
             </button>
           </div>
         )}

@@ -16,31 +16,31 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onNext, onSignIn }) =>
         <span>LLM-Judge</span>
         <span className="welcome-brand-badge">Qwen powered</span>
       </a>
-      <span className="welcome-header-note"><Sparkles size={15} aria-hidden="true" /> Compare with confidence</span>
+      <span className="welcome-header-note"><Sparkles size={15} aria-hidden="true" /> Better choices start with a comparison</span>
     </header>
 
     <section className="welcome-layout" id="welcome">
       <div className="welcome-copy">
-        <div className="welcome-eyebrow"><span /> A clearer way to evaluate AI</div>
-        <h1>Make every model answer <span>earn your trust.</span></h1>
+        <div className="welcome-eyebrow"><span /> Welcome — let’s make model choices easier</div>
+        <h1>Find the answer that <span>works for you.</span></h1>
         <p className="welcome-description">
-          Put answers side by side, let a fine-tuned Qwen judge compare them, and see which model comes out ahead—with evidence you can inspect.
+          Choosing between AI models can be hard. LLM-Judge puts their answers side by side and asks a fine-tuned Qwen judge to compare them, so you can make the call with more confidence.
         </p>
 
         <div className="welcome-workflow" aria-label="How LLM-Judge works">
           <div className="welcome-workflow-step">
             <span className="welcome-step-number">01</span>
-            <span className="welcome-step-text"><strong>Compare</strong><small>Run models or add answers</small></span>
+            <span className="welcome-step-text"><strong>Bring a question</strong><small>Use your prompt or answers</small></span>
           </div>
           <span className="welcome-step-line" aria-hidden="true" />
           <div className="welcome-workflow-step">
             <span className="welcome-step-number">02</span>
-            <span className="welcome-step-text"><strong>Evaluate</strong><small>Score with the Qwen judge</small></span>
+            <span className="welcome-step-text"><strong>Compare</strong><small>Let Qwen weigh each response</small></span>
           </div>
           <span className="welcome-step-line" aria-hidden="true" />
           <div className="welcome-workflow-step">
             <span className="welcome-step-number">03</span>
-            <span className="welcome-step-text"><strong>Choose</strong><small>Review clear rankings</small></span>
+            <span className="welcome-step-text"><strong>Choose</strong><small>See results and decide</small></span>
           </div>
         </div>
 
@@ -52,9 +52,9 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onNext, onSignIn }) =>
         </div>
 
         <div className="welcome-points">
-          <span><Check size={15} aria-hidden="true" /> Pairwise model evaluation</span>
-          <span><Check size={15} aria-hidden="true" /> Inspectable results</span>
-          <span><Check size={15} aria-hidden="true" /> Your provider keys</span>
+          <span><Check size={15} aria-hidden="true" /> Answers side by side</span>
+          <span><Check size={15} aria-hidden="true" /> Results you can review</span>
+          <span><Check size={15} aria-hidden="true" /> Your own model providers</span>
         </div>
       </div>
 
@@ -63,7 +63,7 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onNext, onSignIn }) =>
         <div className="welcome-visual-wash" aria-hidden="true" />
         <figcaption className="welcome-image-caption">
           <span className="welcome-caption-icon"><Sparkles size={17} aria-hidden="true" /></span>
-          <span><strong>From answers to evidence</strong><small>See quality, compare outcomes, decide clearly.</small></span>
+          <span><strong>A little more clarity</strong><small>Compare the answers, then make the call.</small></span>
         </figcaption>
         <div className="welcome-score-card" aria-hidden="true">
           <span className="welcome-score-label">PAIRWISE RESULT</span>
@@ -75,7 +75,7 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onNext, onSignIn }) =>
     </section>
 
     <footer className="welcome-footer">
-      <span>Built for careful model evaluation</span>
+      <span>For people who want to choose the right model for the job</span>
       <span><span className="welcome-footer-dot" /> Qwen-powered pairwise judging</span>
     </footer>
   </main>

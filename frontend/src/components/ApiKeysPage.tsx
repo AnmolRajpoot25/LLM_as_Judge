@@ -164,13 +164,13 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({
       <div className="glass-card" style={{ maxWidth: "560px", margin: "40px auto", padding: "36px", textAlign: "center" }}>
         <ShieldCheck size={48} color="var(--accent-primary)" style={{ margin: "0 auto 16px" }} />
         <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "8px" }}>
-          Authentication Required
+          Sign in to manage your keys
         </h2>
         <p style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "24px" }}>
-          Please sign in to securely save and manage your personal LLM provider API keys.
+          Your model connections will be here once you’re signed in.
         </p>
         <button className="btn-primary" onClick={onNavigateToLogin}>
-          Sign In / Register
+          Sign in or create an account
         </button>
       </div>
     );
@@ -180,10 +180,9 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({
     <div>
       <div className="glass-card mode-banner">
         <div className="mode-info">
-          <h2>Personal LLM Provider API Keys</h2>
+          <h2>Your model connections</h2>
           <p>
-            Configure your own provider keys. When you run benchmarks in <strong>Generate & Compare</strong>,
-            your personal credentials will be dynamically called to generate answers.
+            Add the providers you’d like to use. We’ll use your saved keys when you run a comparison in <strong>Generate & Compare</strong>.
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -221,7 +220,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({
                   color: isSaved ? "#34D399" : "var(--text-dim)",
                   border: `1px solid ${isSaved ? "rgba(16, 185, 129, 0.3)" : "var(--border-subtle)"}`
                 }}>
-                  {isSaved ? "● Configured" : "○ Not Set"}
+                  {isSaved ? "● Connected" : "○ Not connected yet"}
                 </span>
               </div>
 
@@ -242,8 +241,8 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({
                   justifyContent: "space-between",
                   alignItems: "center"
                 }}>
-                  <span>Saved Key: <strong>{masked}</strong></span>
-                  <span style={{ fontSize: "10px", color: "var(--accent-emerald)" }}>Active</span>
+                  <span>Saved key: <strong>{masked}</strong></span>
+                  <span style={{ fontSize: "10px", color: "var(--accent-emerald)" }}>Ready</span>
                 </div>
               )}
 
@@ -251,7 +250,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({
                 <input
                   type="password"
                   className="input-custom"
-                  placeholder={isSaved ? "Enter new key to replace..." : prov.placeholder}
+                  placeholder={isSaved ? "Paste a new key to replace this one…" : prov.placeholder}
                   value={currentInput}
                   onChange={(e) => handleInputChange(prov.id, e.target.value)}
                 />
@@ -290,7 +289,7 @@ export const ApiKeysPage: React.FC<ApiKeysPageProps> = ({
                     textDecoration: "none"
                   }}
                 >
-                  Get Key <ExternalLink size={11} />
+                  Get a key <ExternalLink size={11} />
                 </a>
 
                 <div style={{ display: "flex", gap: "8px" }}>

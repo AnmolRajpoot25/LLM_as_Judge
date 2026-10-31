@@ -19,22 +19,22 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     <div className="glass-card" style={{ padding: "28px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <div>
-          <h2 style={{ fontSize: "20px", fontWeight: 800 }}>Evaluation Session History</h2>
+          <h2 style={{ fontSize: "20px", fontWeight: 800 }}>Your saved comparisons</h2>
           <p style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-            Review and reload past LLM comparison benchmarks saved in SQLite database.
+            Pick up where you left off. Open a saved run to revisit the answers and results.
           </p>
         </div>
         <button className="btn-secondary" onClick={onRefresh} disabled={isLoading}>
           <RefreshCw className={isLoading ? "animate-spin" : ""} size={14} />
-          Refresh
+          Refresh history
         </button>
       </div>
 
       {sessions.length === 0 ? (
         <div style={{ padding: "40px", textAlign: "center", color: "var(--text-dim)" }}>
           <History size={40} style={{ opacity: 0.4, marginBottom: "12px" }} />
-          <p>No saved evaluation sessions found.</p>
-          <p style={{ fontSize: "12px" }}>Run a comparison and click "Save Session" to persist it here.</p>
+          <p>No saved comparisons yet.</p>
+          <p style={{ fontSize: "12px" }}>When you save a run, you’ll find it here whenever you want to come back to it.</p>
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
@@ -44,7 +44,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                 <th>Mode</th>
                 <th>Prompt / Problem</th>
                 <th>Models Compared</th>
-                <th>Saved At</th>
+                <th>Saved</th>
                 <th>Status</th>
                 <th style={{ textAlign: "right" }}>Action</th>
               </tr>
