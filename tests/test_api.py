@@ -37,6 +37,20 @@ def test_root_and_health(client):
     assert r_health.json()["status"] == "healthy"
 
 
+def test_production_frontend_cors_preflight(client):
+    response = client.options(
+        "/api/auth/login",
+        headers={
+            "Origin": "https://llm-as-judge-murex.vercel.app",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://llm-as-judge-murex.vercel.app"
+    assert response.headers["access-control-allow-credentials"] == "true"
+
+
 def test_get_models(client):
     r = client.get("/api/models")
     assert r.status_code == 200

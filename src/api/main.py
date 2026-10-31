@@ -70,6 +70,11 @@ allowed_origins = [
     for origin in settings.cors_allowed_origins.split(",")
     if origin.strip()
 ]
+# The production Vercel deployment is a first-party origin and must be
+# allowed even when the Render environment has not yet set this variable.
+production_frontend_origin = "https://llm-as-judge-murex.vercel.app"
+if production_frontend_origin not in allowed_origins:
+    allowed_origins.append(production_frontend_origin)
 if settings.app_env.lower() != "production":
     for origin in (
         "http://localhost:5173",
